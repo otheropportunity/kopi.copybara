@@ -5,55 +5,124 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Coffee Loyalty - Buyer</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  
-<!-- Firebase SDKs -->
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
-<!-- Your app connection -->
-<script src="firebase.js"></script>
-<script src="app.js"></script>
-<link rel="stylesheet" href="style.css">
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
+  <!-- Firebase config and app logic -->
+  <script src="firebase.js"></script>
+  <link rel="stylesheet" href="style.css" />
 </head>
 
-<body class="bg-amber-50 text-gray-800">
+<body class="bg-amber-50 text-gray-800 font-sans">
   <div class="max-w-md mx-auto mt-10 bg-white rounded-2xl shadow-lg p-6">
-    <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">☕ Coffee Loyalty Program</h1>
+    <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">
+      ☕ Coffee Loyalty Program
+    </h1>
 
-    <!-- Registration / Login -->
-    <div id="authSection">
-      <h2 class="text-lg font-semibold mb-2">New Buyer Registration</h2>
-      <input id="buyerName" class="w-full border rounded p-2 mb-2" placeholder="Buyer Name" />
-      <input id="buyerNumber" class="w-full border rounded p-2 mb-2" placeholder="Phone Number" />
-      <input id="buyerEmail" class="w-full border rounded p-2 mb-2" placeholder="Email" />
-      <input id="buyerPassword" type="password" class="w-full border rounded p-2 mb-4" placeholder="Password" />
-      <button onclick="registerBuyer()" class="w-full bg-amber-700 text-white p-2 rounded-lg mb-4">Register</button>
+    <!-- 🔐 LOGIN / REGISTER SECTION -->
+    <div id="authSection" class="auth-box">
+      <h2 class="text-lg font-semibold mb-2 text-center">Buyer Login</h2>
 
-<h2 class="text-lg font-semibold mb-2">Already a Member?</h2>
-<input id="loginIdentifier" class="w-full border rounded p-2 mb-2" placeholder="Email or Phone Number" />
-<input id="loginPassword" type="password" class="w-full border rounded p-2 mb-4" placeholder="Password" />
-<button onclick="loginBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg">Login</button>
+      <input
+        type="text"
+        id="loginIdentifier"
+        placeholder="Email or Phone Number"
+        class="w-full border rounded p-2 mb-2"
+      />
+      <input
+        type="password"
+        id="loginPassword"
+        placeholder="Password"
+        class="w-full border rounded p-2 mb-4"
+      />
+      <button
+        onclick="loginBuyer()"
+        class="w-full bg-green-700 text-white p-2 rounded-lg mb-4 hover:bg-green-800 transition"
+      >
+        Login
+      </button>
+
+      <hr class="my-4" />
+
+      <h3 class="text-lg font-semibold mb-2 text-center">New Buyer? Register</h3>
+      <input
+        type="text"
+        id="buyerName"
+        placeholder="Full Name"
+        class="w-full border rounded p-2 mb-2"
+      />
+      <input
+        type="text"
+        id="buyerNumber"
+        placeholder="Phone Number"
+        class="w-full border rounded p-2 mb-2"
+      />
+      <input
+        type="email"
+        id="buyerEmail"
+        placeholder="Email"
+        class="w-full border rounded p-2 mb-2"
+      />
+      <input
+        type="password"
+        id="buyerPassword"
+        placeholder="Password"
+        class="w-full border rounded p-2 mb-4"
+      />
+      <button
+        onclick="registerBuyer()"
+        class="w-full bg-amber-700 text-white p-2 rounded-lg hover:bg-amber-800 transition"
+      >
+        Register
+      </button>
     </div>
 
-    <!-- Buyer Dashboard -->
+    <!-- 👤 BUYER DASHBOARD -->
     <div id="buyerSection" class="hidden">
-      <h2 class="text-lg font-semibold text-center mb-4">Welcome, <span id="buyerNameDisplay"></span></h2>
-      <p class="text-center mb-2">Current Points: <span id="buyerPoints" class="font-bold">0</span></p>
+      <h2 class="text-lg font-semibold text-center mb-4">
+        Welcome, <span id="buyerNameDisplay"></span> 👋
+      </h2>
+      <p class="text-center mb-4">
+        Current Points: <span id="buyerPoints" class="font-bold">0</span>
+      </p>
 
       <h3 class="font-semibold mb-2">Redeem Rewards</h3>
       <select id="promoSelect" class="w-full border rounded p-2 mb-2">
         <option value="">-- Select Reward --</option>
+        <!-- You can populate dynamically later -->
       </select>
 
-      <input id="buyerConfirmPassword" type="password" class="w-full border rounded p-2 mb-2" placeholder="Confirm Buyer Password" />
-      <input id="staffPassword" type="password" class="w-full border rounded p-2 mb-2" placeholder="Staff Password" />
-      <button onclick="redeemReward()" class="w-full bg-amber-700 text-white p-2 rounded-lg mb-4">Redeem</button>
+      <input
+        id="buyerConfirmPassword"
+        type="password"
+        class="w-full border rounded p-2 mb-2"
+        placeholder="Confirm Buyer Password"
+      />
+      <input
+        id="staffPassword"
+        type="password"
+        class="w-full border rounded p-2 mb-2"
+        placeholder="Staff Password"
+      />
+      <button
+        onclick="redeemReward()"
+        class="w-full bg-amber-700 text-white p-2 rounded-lg mb-4 hover:bg-amber-800 transition"
+      >
+        Redeem
+      </button>
 
-      <button onclick="logoutBuyer()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg">Logout</button>
+      <button
+        onclick="logoutBuyer()"
+        class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg hover:bg-gray-400 transition"
+      >
+        Logout
+      </button>
     </div>
   </div>
 
+  <!-- App logic -->
   <script src="app.js"></script>
 </body>
 </html>
