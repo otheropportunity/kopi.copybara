@@ -159,12 +159,15 @@
               localStorage.setItem("userEmail", user.email);
               localStorage.setItem("userRole", user.role);
 
-              if (user.role === "member") {
-                window.location.href = "redeem.html";
-              } else if (user.role === "staff") {
-                window.location.href = "transaction.html";
-              }
-            }
+if (user.role === "staff") {
+  sessionStorage.setItem("staffName", user.name);
+  window.location.href = "transaction.html";
+} else if (user.role === "member") {
+  sessionStorage.setItem("buyerName", user.name);
+  window.location.href = "redeem.html";
+}
+
+            
           });
 
           if (!found && roleType === "staffs") {
