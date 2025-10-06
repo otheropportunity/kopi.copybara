@@ -5,42 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Coffee Loyalty - Transaction</title>
   <script src="https://cdn.tailwindcss.com"></script>
-<!-- Firebase SDKs -->
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
-<!-- Your app connection -->
-<script src="firebase.js"></script>
-<script src="app.js"></script>
-<link rel="stylesheet" href="style.css">
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
+  <!-- Your app connection -->
+  <script src="firebase.js"></script>
+  <link rel="stylesheet" href="style.css">
 </head>
 
 <body class="bg-amber-50 text-gray-800">
   <div class="max-w-md mx-auto mt-10 bg-white rounded-2xl shadow-lg p-6">
     <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">☕ Staff Transaction Panel</h1>
 
-    <!-- Staff Login -->
-    <div id="staffLoginSection">
-      <input id="staffName" class="w-full border rounded p-2 mb-2" placeholder="Staff Name" />
-      <input id="staffPassword" type="password" class="w-full border rounded p-2 mb-4" placeholder="Staff Password" />
-      <button onclick="loginStaff()" class="w-full bg-amber-700 text-white p-2 rounded-lg">Login</button>
-    </div>
-
-    <!-- Transaction Section -->
-    <div id="staffSection" class="hidden">
-      <h2 class="text-lg font-semibold text-center mb-4">Welcome, <span id="staffNameDisplay"></span></h2>
+    <!-- Staff Dashboard -->
+    <div id="staffSection">
+      <h2 class="text-lg font-semibold text-center mb-4">
+        Welcome, <span id="staffNameDisplay"></span> 👋
+      </h2>
 
       <input id="searchBuyer" class="w-full border rounded p-2 mb-2" placeholder="Search Buyer (Name / Phone)" />
-      <button onclick="searchBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg mb-4">Search</button>
+      <button onclick="searchBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg mb-4">
+        Search
+      </button>
 
-      <div id="buyerInfo" class="hidden">
+      <!-- Buyer Info -->
+      <div id="buyerInfo" class="hidden border-t pt-4">
         <p><strong>Name:</strong> <span id="buyerFoundName"></span></p>
+        <p><strong>Phone:</strong> <span id="buyerFoundPhone"></span></p>
         <p><strong>Points:</strong> <span id="buyerFoundPoints"></span></p>
-        <button onclick="addStamp()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-3">Add Stamp (+1)</button>
+
+        <div class="flex gap-2 mt-3">
+          <button onclick="addPoint()" class="flex-1 bg-amber-700 text-white p-2 rounded-lg">+ Add Point</button>
+          <button onclick="redeemPoint()" class="flex-1 bg-red-600 text-white p-2 rounded-lg">- Redeem Point</button>
+        </div>
       </div>
 
-      <button onclick="logoutStaff()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg mt-4">Logout</button>
+      <button onclick="logoutStaff()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg mt-6">Logout</button>
     </div>
   </div>
 
