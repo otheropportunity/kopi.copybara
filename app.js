@@ -39,35 +39,49 @@ function registerBuyer() {
 }
 
 // ✅ Updated login logic: allow login by email OR phone number
-function loginBuyer() {
+function loginUser() {
   const identifier = document.getElementById("loginIdentifier").value.trim();
   const password = document.getElementById("loginPassword").value.trim();
-  const db = firebase.database();
 
   if (!identifier || !password) {
-    alert("⚠️ Please enter your email/phone and password.");
+    alert("Please fill all login fields.");
     return;
   }
 
-  db.ref("buyers").once("value", (snapshot) => {
-    let found = false;
-    snapshot.forEach((child) => {
-      const buyer = child.val();
-      if (
-        (buyer.email === identifier || buyer.phone === identifier) &&
-        buyer.password === password
-      ) {
-        found = true;
-        document.getElementById("authSection").classList.add("hidden");
-        document.getElementById("buyerSection").classList.remove("hidden");
-        document.getElementById("buyerNameDisplay").textContent = buyer.name;
-        document.getElementById("buyerPoints").textContent = buyer.points || 0;
+  const allRoles = ["buyers", "staffs"];
+  const dbRef = firebase.database();
+
+  let found = false;
+
+  allRoles.forEach((roleType, index) => {
+    dbRef.ref(roleType).once("value", (snapshot) => {
+      snapshot.forEach((child) => {
+        const user = child.val();
+
+        if ((user.email === identifier || user.phone === identifier) && user.password === password) {
+          found = true;
+
+          localStorage.setItem("userEmail", user.email);
+          localStorage.setItem("userRole", user.role);
+
+          if (user.role === "staff") {
+            sessionStorage.setItem("staffName", user.name);
+            window.location.href = "transaction.html";
+          } else if (user.role === "member") {
+            sessionStorage.setItem("buyerName", user.name);
+            window.location.href = "redeem.html";
+          }
+        }
+      });
+
+      // If still not found after checking both roles
+      if (!found && index === allRoles.length - 1) {
+        alert("Invalid credentials. Please try again.");
       }
     });
-
-    if (!found) alert("❌ Invalid email/phone or password.");
   });
 }
+
 
 function logoutBuyer() {
   document.getElementById("authSection").classList.remove("hidden");
