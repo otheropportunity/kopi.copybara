@@ -135,7 +135,7 @@
       .catch(err => alert("Error: " + err.message));
     }
 
-    // === Login Logic (Fixed and Working) ===
+    // === Login Logic (Final Fixed Version) ===
     function loginUser() {
       const identifier = document.getElementById("loginIdentifier").value.trim();
       const password = document.getElementById("loginPassword").value.trim();
@@ -148,35 +148,33 @@
       const allRoles = ["buyers", "staffs"];
       let found = false;
 
-      Promise.all(
-        allRoles.map(roleType => db.ref(roleType).once("value"))
-      )
-      .then(snapshots => {
-        snapshots.forEach(snapshot => {
-          snapshot.forEach(child => {
-            const user = child.val();
+      Promise.all(allRoles.map(roleType => db.ref(roleType).once("value")))
+        .then(snapshots => {
+          snapshots.forEach(snapshot => {
+            snapshot.forEach(child => {
+              const data = child.val();
 
-            if ((user.email === identifier || user.phone === identifier) && user.password === password) {
-              found = true;
+              if ((data.email === identifier || data.phone === identifier) && data.password === password) {
+                found = true;
 
-              if (user.role === "staff") {
-                sessionStorage.setItem("staffName", user.name);
-                window.location.href = "transaction.html";
-              } else if (user.role === "member") {
-                sessionStorage.setItem("buyerName", user.name);
-                window.location.href = "redeem.html";
+                if (data.role === "staff") {
+                  sessionStorage.setItem("staffName", data.name);
+                  window.location.href = "transaction.html";
+                } else if (data.role === "member") {
+                  sessionStorage.setItem("memberName", data.name);
+                  window.location.href = "redeem.html";
+                }
               }
-            }
+            });
           });
-        });
 
-        if (!found) {
-          alert("❌ Invalid credentials. Please try again.");
-        }
-      })
-      .catch(err => {
-        alert("⚠️ Login error: " + err.message);
-      });
+          if (!found) {
+            alert("❌ Invalid credentials. Please try again.");
+          }
+        })
+        .catch(err => {
+          alert("⚠️ Login error: " + err.message);
+        });
     }
   </script>
 </body>
