@@ -135,7 +135,7 @@
       .catch(err => alert("Error: " + err.message));
     }
 
-    // === Login Logic (fixed) ===
+    // === Login Logic (Fixed and Working) ===
     function loginUser() {
       const identifier = document.getElementById("loginIdentifier").value.trim();
       const password = document.getElementById("loginPassword").value.trim();
@@ -148,9 +148,11 @@
       const allRoles = ["buyers", "staffs"];
       let found = false;
 
-      allRoles.forEach((roleType, index) => {
-        db.ref(roleType).once("value")
-        .then(snapshot => {
+      Promise.all(
+        allRoles.map(roleType => db.ref(roleType).once("value"))
+      )
+      .then(snapshots => {
+        snapshots.forEach(snapshot => {
           snapshot.forEach(child => {
             const user = child.val();
 
@@ -166,5 +168,16 @@
               }
             }
           });
+        });
 
-          // If last role checked and still not
+        if (!found) {
+          alert("❌ Invalid credentials. Please try again.");
+        }
+      })
+      .catch(err => {
+        alert("⚠️ Login error: " + err.message);
+      });
+    }
+  </script>
+</body>
+</html>
