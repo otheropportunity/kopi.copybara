@@ -1,0 +1,124 @@
+/* === GLOBAL STYLES === */
+body {
+  font-family: 'Poppins', sans-serif;
+  background: #f7f7f7;
+  margin: 0;
+  padding: 0;
+  color: #333;
+}
+
+.container {
+  width: 95%;
+  max-width: 400px;
+  margin: 40px auto;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  padding: 20px 25px;
+}
+
+h1, h2, h3 {
+  text-align: center;
+  color: #333;
+}
+
+h1 span {
+  color: #c47a2c; /* Coffee brown */
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+button,
+select {
+  width: 100%;
+  padding: 10px 14px;
+  margin: 10px 0;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+input:focus, select:focus {
+  border-color: #c47a2c;
+  outline: none;
+  box-shadow: 0 0 5px rgba(196,122,44,0.4);
+}
+
+button {
+  background-color: #c47a2c;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  transition: 0.3s;
+}
+
+button:hover {
+  background-color: #a66320;
+}
+
+/* === NAVIGATION === */
+nav {
+  display: flex;
+  justify-content: center;
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  padding: 10px 0;
+}
+
+nav a {
+  text-decoration: none;
+  color: #c47a2c;
+  font-weight: 600;
+  margin: 0 15px;
+  transition: color 0.3s;
+}
+
+nav a:hover {
+  color: #8c501a;
+}
+
+/* === CARD / POINT DISPLAY === */
+.point-display {
+  text-align: center;
+  background-color: #fff8f0;
+  border: 2px solid #c47a2c;
+  border-radius: 12px;
+  padding: 15px;
+  margin: 20px 0;
+}
+
+.point-display h2 {
+  color: #c47a2c;
+  font-size: 2em;
+  margin: 0;
+}
+
+/* === REDEMPTION === */
+.redeem-options {
+  margin-top: 20px;
+}
+
+.redeem-options button {
+  width: 48%;
+  margin: 1%;
+}
+
+/* === FOOTER === */
+footer {
+  text-align: center;
+  font-size: 12px;
+  color: #777;
+  margin-top: 20px;
+}
+
+footer a {
+  color: #c47a2c;
+  text-decoration: none;
+}
+
+footer a:hover {
+  text-decoration: underline;
+}
