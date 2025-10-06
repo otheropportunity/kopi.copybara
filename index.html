@@ -1,128 +1,111 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Coffee Loyalty - Buyer</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="UTF-8">
+  <title>Login - Rewards System</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js"></script>
+  <script>
+    // 🔥 Your Firebase Config
+const firebaseConfig = {
+  apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
+  authDomain: "kopi-copybara.firebaseapp.com",
+  projectId: "kopi-copybara",
+  storageBucket: "kopi-copybara.firebasestorage.app",
+  messagingSenderId: "729875984861",
+  appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
+};
+    const app = firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+  </script>
 
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-
-  <!-- Firebase config and app logic -->
-  <script src="firebase.js"></script>
-  <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #f0f3f7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    .login-container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
+      width: 340px;
+    }
+    input, select, button {
+      width: 100%;
+      margin-top: 10px;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      font-weight: bold;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+  </style>
 </head>
-
-<body class="bg-amber-50 text-gray-800 font-sans">
-  <div class="max-w-md mx-auto mt-10 bg-white rounded-2xl shadow-lg p-6">
-    <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">
-      ☕ Coffee Loyalty Program
-    </h1>
-
-    <!-- 🔐 LOGIN / REGISTER SECTION -->
-    <div id="authSection" class="auth-box">
-      <h2 class="text-lg font-semibold mb-2 text-center">Buyer Login</h2>
-
-      <input
-        type="text"
-        id="loginIdentifier"
-        placeholder="Email or Phone Number"
-        class="w-full border rounded p-2 mb-2"
-      />
-      <input
-        type="password"
-        id="loginPassword"
-        placeholder="Password"
-        class="w-full border rounded p-2 mb-4"
-      />
-      <button
-        onclick="loginBuyer()"
-        class="w-full bg-green-700 text-white p-2 rounded-lg mb-4 hover:bg-green-800 transition"
-      >
-        Login
-      </button>
-
-      <hr class="my-4" />
-
-      <h3 class="text-lg font-semibold mb-2 text-center">New Buyer? Register</h3>
-      <input
-        type="text"
-        id="buyerName"
-        placeholder="Full Name"
-        class="w-full border rounded p-2 mb-2"
-      />
-      <input
-        type="text"
-        id="buyerNumber"
-        placeholder="Phone Number"
-        class="w-full border rounded p-2 mb-2"
-      />
-      <input
-        type="email"
-        id="buyerEmail"
-        placeholder="Email"
-        class="w-full border rounded p-2 mb-2"
-      />
-      <input
-        type="password"
-        id="buyerPassword"
-        placeholder="Password"
-        class="w-full border rounded p-2 mb-4"
-      />
-      <button
-        onclick="registerBuyer()"
-        class="w-full bg-amber-700 text-white p-2 rounded-lg hover:bg-amber-800 transition"
-      >
-        Register
-      </button>
-    </div>
-
-    <!-- 👤 BUYER DASHBOARD -->
-    <div id="buyerSection" class="hidden">
-      <h2 class="text-lg font-semibold text-center mb-4">
-        Welcome, <span id="buyerNameDisplay"></span> 👋
-      </h2>
-      <p class="text-center mb-4">
-        Current Points: <span id="buyerPoints" class="font-bold">0</span>
-      </p>
-
-      <h3 class="font-semibold mb-2">Redeem Rewards</h3>
-      <select id="promoSelect" class="w-full border rounded p-2 mb-2">
-        <option value="">-- Select Reward --</option>
-        <!-- You can populate dynamically later -->
-      </select>
-
-      <input
-        id="buyerConfirmPassword"
-        type="password"
-        class="w-full border rounded p-2 mb-2"
-        placeholder="Confirm Buyer Password"
-      />
-      <input
-        id="staffPassword"
-        type="password"
-        class="w-full border rounded p-2 mb-2"
-        placeholder="Staff Password"
-      />
-      <button
-        onclick="redeemReward()"
-        class="w-full bg-amber-700 text-white p-2 rounded-lg mb-4 hover:bg-amber-800 transition"
-      >
-        Redeem
-      </button>
-
-      <button
-        onclick="logoutBuyer()"
-        class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg hover:bg-gray-400 transition"
-      >
-        Logout
-      </button>
-    </div>
+<body>
+  <div class="login-container">
+    <h2>Login</h2>
+    <input type="text" id="emailOrPhone" placeholder="Email or Phone Number">
+    <input type="password" id="password" placeholder="Password">
+    <select id="role">
+      <option value="member">Member</option>
+      <option value="staff">Staff</option>
+    </select>
+    <button onclick="login()">Login</button>
+    <p id="message"></p>
   </div>
 
-  <!-- App logic -->
-  <script src="app.js"></script>
+  <script>
+    async function login() {
+      const emailOrPhone = document.getElementById("emailOrPhone").value.trim();
+      const password = document.getElementById("password").value.trim();
+      const role = document.getElementById("role").value;
+      const message = document.getElementById("message");
+
+      if (!emailOrPhone || !password) {
+        message.innerText = "Please fill in all fields.";
+        return;
+      }
+
+      let email = emailOrPhone;
+
+      // 🔹 Check if input is phone number
+      if (!email.includes("@")) {
+        email = emailOrPhone + "@example.com"; // convert phone to pseudo-email
+      }
+
+      try {
+        const userCredential = await auth.signInWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+
+        // Save role in localStorage
+        localStorage.setItem("userRole", role);
+        localStorage.setItem("userEmail", emailOrPhone);
+
+        // Redirect based on role
+        if (role === "staff") {
+          window.location.href = "transaction.html";
+        } else {
+          window.location.href = "redeem.html";
+        }
+      } catch (error) {
+        message.innerText = "Login failed: " + error.message;
+      }
+    }
+  </script>
 </body>
 </html>
