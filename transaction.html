@@ -4,113 +4,97 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Coffee Loyalty - Transaction</title>
-
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-  <script src="firebase.js"></script>
 
-  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
+    .card { background: white; border-radius: 12px; padding: 24px; max-width: 450px; margin: 60px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    button { transition: 0.3s; }
+    button:hover { opacity: 0.85; }
+  </style>
 </head>
 
-<body class="bg-amber-50 text-gray-800">
-  <div class="max-w-md mx-auto mt-10 bg-white rounded-2xl shadow-lg p-6">
-    <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">
-      ☕ Staff Transaction Panel
-    </h1>
+<body>
+  <div class="card">
+    <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">☕ Staff Transaction Panel</h1>
 
-    <!-- Staff Section -->
-    <div id="staffSection">
-      <h2 class="text-lg font-semibold text-center mb-4">
-        Welcome, <span id="staffNameDisplay" class="text-amber-700"></span>
-      </h2>
+    <h2 class="text-lg font-semibold text-center mb-4">Welcome, <span id="staffNameDisplay" class="text-amber-700"></span></h2>
 
-      <!-- Search buyer -->
-      <input id="searchBuyer" class="w-full border rounded p-2 mb-2"
-             placeholder="Search Buyer (Name / Phone)" />
-      <button onclick="searchBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg mb-4">
-        Search
-      </button>
+    <!-- Search Buyer -->
+    <input id="searchBuyer" class="w-full border rounded p-2 mb-2" placeholder="Search Buyer (Name / Phone)" />
+    <button onclick="searchBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg mb-4">Search</button>
 
-      <!-- Buyer Info -->
-      <div id="buyerInfo" class="hidden border-t pt-3">
-        <p><strong>Name:</strong> <span id="buyerFoundName"></span></p>
-        <p><strong>Points:</strong> <span id="buyerFoundPoints"></span></p>
+    <!-- Buyer Info & Coffee Menu -->
+    <div id="buyerInfo" class="hidden border-t pt-3">
+      <p><strong>Name:</strong> <span id="buyerFoundName"></span></p>
+      <p><strong>Points:</strong> <span id="buyerFoundPoints"></span></p>
 
-        <!-- Coffee items -->
-        <div class="mt-4">
-          <h3 class="font-semibold mb-2 text-amber-800">Select Items:</h3>
+      <h3 class="font-semibold mb-2 text-amber-800 mt-4">Select Items:</h3>
 
-          <div class="flex justify-between mb-2">
-            <span>Copyaren (10,000)</span>
-            <input type="number" id="copyarenQty" min="0" value="0" class="w-16 border rounded text-center">
-          </div>
-
-          <div class="flex justify-between mb-2">
-            <span>Chocobara (12,000)</span>
-            <input type="number" id="chocobaraQty" min="0" value="0" class="w-16 border rounded text-center">
-          </div>
-
-          <div class="flex justify-between mb-2">
-            <span>Camericano (8,000)</span>
-            <input type="number" id="camericanoQty" min="0" value="0" class="w-16 border rounded text-center">
-          </div>
-
-          <button onclick="submitTransaction()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-4">
-            Submit Transaction
-          </button>
-
-          <button onclick="goToRedeem()" class="w-full bg-blue-700 text-white p-2 rounded-lg mt-3">
-            Redeem Points
-          </button>
-        </div>
+      <div class="flex justify-between mb-2">
+        <span>Copyaren (10,000)</span>
+        <input type="number" id="copyarenQty" min="0" value="0" class="w-16 border rounded text-center">
       </div>
 
-      <button onclick="logoutStaff()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg mt-6">
-        Logout
-      </button>
+      <div class="flex justify-between mb-2">
+        <span>Chocobara (12,000)</span>
+        <input type="number" id="chocobaraQty" min="0" value="0" class="w-16 border rounded text-center">
+      </div>
+
+      <div class="flex justify-between mb-2">
+        <span>Camericano (8,000)</span>
+        <input type="number" id="camericanoQty" min="0" value="0" class="w-16 border rounded text-center">
+      </div>
+
+      <button onclick="submitTransaction()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-4">Submit Transaction</button>
+      <button onclick="goToRedeem()" class="w-full bg-blue-700 text-white p-2 rounded-lg mt-3">Redeem Points</button>
     </div>
+
+    <button onclick="logoutStaff()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg mt-6">Logout</button>
   </div>
 
   <script>
-    // ✅ Check staff login session
-    document.addEventListener("DOMContentLoaded", () => {
-      const staffName = sessionStorage.getItem("staffName");
-
-      if (!staffName || staffName === "null") {
-        alert("Session expired or not logged in. Please login as staff again.");
-        window.location.href = "index.html";
-        return;
-      }
-
-      // Show staff name in header
-      document.getElementById("staffNameDisplay").textContent = staffName;
-    });
-
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
+      authDomain: "kopi-copybara.firebaseapp.com",
+      databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "kopi-copybara",
+      storageBucket: "kopi-copybara.appspot.com",
+      messagingSenderId: "729875984861",
+      appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
+    };
+    firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+
     let currentBuyerId = null;
     let currentBuyerPoints = 0;
 
-    // 🔍 Search Buyer
-    function searchBuyer() {
-      const query = document.getElementById("searchBuyer").value.trim().toLowerCase();
-      if (!query) {
-        alert("Please enter buyer name or phone!");
+    // Check staff session
+    document.addEventListener("DOMContentLoaded", () => {
+      const staffName = sessionStorage.getItem("staffName");
+      if (!staffName || staffName === "null") {
+        alert("Session expired or not logged in. Please login as staff.");
+        window.location.href = "index.html";
         return;
       }
+      document.getElementById("staffNameDisplay").textContent = staffName;
+    });
 
-      const buyerRef = db.ref("buyers");
-      buyerRef.once("value", (snapshot) => {
+    // Search buyer
+    function searchBuyer() {
+      const query = document.getElementById("searchBuyer").value.trim().toLowerCase();
+      if (!query) { alert("Enter buyer name or phone!"); return; }
+
+      db.ref("buyers").once("value", snapshot => {
         let found = false;
-
-        snapshot.forEach((child) => {
+        snapshot.forEach(child => {
           const data = child.val();
-          if (
-            (data.name && data.name.toLowerCase().includes(query)) ||
-            (data.phone && data.phone.includes(query))
-          ) {
+          if ((data.name && data.name.toLowerCase().includes(query)) || (data.phone && data.phone.includes(query))) {
             found = true;
             currentBuyerId = child.key;
             currentBuyerPoints = data.points || 0;
@@ -120,43 +104,43 @@
             document.getElementById("buyerInfo").classList.remove("hidden");
           }
         });
-
-        if (!found) alert("Buyer not found!");
+        if (!found) {
+          currentBuyerId = null;
+          currentBuyerPoints = 0;
+          document.getElementById("buyerInfo").classList.add("hidden");
+          alert("Buyer not found!");
+        }
       });
     }
 
-    // 💰 Submit Transaction (adds points based on coffee quantity)
+    // Submit transaction
     function submitTransaction() {
-      if (!currentBuyerId) {
-        alert("Search for a buyer first!");
-        return;
-      }
+      if (!currentBuyerId) { alert("Search for a buyer first!"); return; }
 
       const copyarenQty = parseInt(document.getElementById("copyarenQty").value) || 0;
       const chocobaraQty = parseInt(document.getElementById("chocobaraQty").value) || 0;
       const camericanoQty = parseInt(document.getElementById("camericanoQty").value) || 0;
 
-      const totalItems = copyarenQty + chocobaraQty + camericanoQty;
-      if (totalItems === 0) {
-        alert("Please select at least one item!");
-        return;
-      }
+      if (copyarenQty + chocobaraQty + camericanoQty === 0) { alert("Select at least one item!"); return; }
 
-      const newPoints = currentBuyerPoints + totalItems;
+      const totalPoints = copyarenQty + chocobaraQty + camericanoQty;
+      const newPoints = currentBuyerPoints + totalPoints;
+
       db.ref("buyers/" + currentBuyerId).update({ points: newPoints })
-      .then(() => {
-        document.getElementById("buyerFoundPoints").innerText = newPoints;
-        alert(`✅ Transaction successful! Buyer earned ${totalItems} point(s).`);
-      })
-      .catch((err) => alert("Error updating points: " + err.message));
+        .then(() => {
+          currentBuyerPoints = newPoints;
+          document.getElementById("buyerFoundPoints").innerText = newPoints;
+          alert(`✅ Transaction successful! Buyer earned ${totalPoints} point(s).`);
+        })
+        .catch(err => alert("Error updating points: " + err.message));
     }
 
-    // 🔄 Go to redeem page
+    // Redeem points
     function goToRedeem() {
       window.location.href = "redeem.html";
     }
 
-    // 🚪 Logout
+    // Logout
     function logoutStaff() {
       sessionStorage.removeItem("staffName");
       window.location.href = "index.html";
