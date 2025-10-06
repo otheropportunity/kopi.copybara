@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coffee Loyalty - Buyer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
+  <script src="firebase.js"></script>
+</head>
+
+<body class="bg-amber-50 text-gray-800">
+  <div class="max-w-md mx-auto mt-10 bg-white rounded-2xl shadow-lg p-6">
+    <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">☕ Coffee Loyalty Program</h1>
+
+    <!-- Registration / Login -->
+    <div id="authSection">
+      <h2 class="text-lg font-semibold mb-2">New Buyer Registration</h2>
+      <input id="buyerName" class="w-full border rounded p-2 mb-2" placeholder="Buyer Name" />
+      <input id="buyerNumber" class="w-full border rounded p-2 mb-2" placeholder="Phone Number" />
+      <input id="buyerEmail" class="w-full border rounded p-2 mb-2" placeholder="Email" />
+      <input id="buyerPassword" type="password" class="w-full border rounded p-2 mb-4" placeholder="Password" />
+      <button onclick="registerBuyer()" class="w-full bg-amber-700 text-white p-2 rounded-lg mb-4">Register</button>
+
+      <h2 class="text-lg font-semibold mb-2">Already a Member?</h2>
+      <input id="loginEmail" class="w-full border rounded p-2 mb-2" placeholder="Email" />
+      <input id="loginPassword" type="password" class="w-full border rounded p-2 mb-4" placeholder="Password" />
+      <button onclick="loginBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg">Login</button>
+    </div>
+
+    <!-- Buyer Dashboard -->
+    <div id="buyerSection" class="hidden">
+      <h2 class="text-lg font-semibold text-center mb-4">Welcome, <span id="buyerNameDisplay"></span></h2>
+      <p class="text-center mb-2">Current Points: <span id="buyerPoints" class="font-bold">0</span></p>
+
+      <h3 class="font-semibold mb-2">Redeem Rewards</h3>
+      <select id="promoSelect" class="w-full border rounded p-2 mb-2">
+        <option value="">-- Select Reward --</option>
+      </select>
+
+      <input id="buyerConfirmPassword" type="password" class="w-full border rounded p-2 mb-2" placeholder="Confirm Buyer Password" />
+      <input id="staffPassword" type="password" class="w-full border rounded p-2 mb-2" placeholder="Staff Password" />
+      <button onclick="redeemReward()" class="w-full bg-amber-700 text-white p-2 rounded-lg mb-4">Redeem</button>
+
+      <button onclick="logoutBuyer()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg">Logout</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
