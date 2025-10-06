@@ -5,22 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kopi Copybara - Loyalty Login</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- Firebase SDKs -->
+
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
   <!-- Firebase Config -->
   <script>
     const firebaseConfig = {
-  apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
-  authDomain: "kopi-copybara.firebaseapp.com",
-  databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "kopi-copybara",
-  storageBucket: "kopi-copybara.appspot.com",
-  messagingSenderId: "729875984861",
-  appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
-};
+      apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
+      authDomain: "kopi-copybara.firebaseapp.com",
+      databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "kopi-copybara",
+      storageBucket: "kopi-copybara.appspot.com",
+      messagingSenderId: "729875984861",
+      appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
+    };
     firebase.initializeApp(firebaseConfig);
   </script>
 
@@ -86,6 +86,7 @@
   <script>
     const db = firebase.database();
 
+    // === Show master password input if staff selected ===
     const staffMasterDiv = document.getElementById('staffMasterDiv');
     document.getElementById('userType').addEventListener('change', function() {
       if (this.value === 'staff') {
@@ -95,6 +96,7 @@
       }
     });
 
+    // === Register New User ===
     function registerUser() {
       const role = document.getElementById("userType").value;
       const name = document.getElementById("regName").value.trim();
@@ -128,16 +130,12 @@
         createdAt: new Date().toISOString()
       })
       .then(() => {
-        alert(role === "staff" ? "Staff registered successfully!" : "Member registered successfully!");
-        document.getElementById("regName").value = "";
-        document.getElementById("regPhone").value = "";
-        document.getElementById("regEmail").value = "";
-        document.getElementById("regPassword").value = "";
-        document.getElementById("staffMasterPassword").value = "";
+        alert(role === "staff" ? "✅ Staff registered successfully!" : "✅ Member registered successfully!");
       })
       .catch(err => alert("Error: " + err.message));
     }
 
+    // === Login Logic (fixed) ===
     function loginUser() {
       const identifier = document.getElementById("loginIdentifier").value.trim();
       const password = document.getElementById("loginPassword").value.trim();
@@ -150,32 +148,23 @@
       const allRoles = ["buyers", "staffs"];
       let found = false;
 
-      allRoles.forEach((roleType) => {
-        db.ref(roleType).once("value", (snapshot) => {
-          snapshot.forEach((child) => {
+      allRoles.forEach((roleType, index) => {
+        db.ref(roleType).once("value")
+        .then(snapshot => {
+          snapshot.forEach(child => {
             const user = child.val();
+
             if ((user.email === identifier || user.phone === identifier) && user.password === password) {
               found = true;
-              localStorage.setItem("userEmail", user.email);
-              localStorage.setItem("userRole", user.role);
 
-if (user.role === "staff") {
-  sessionStorage.setItem("staffName", user.name);
-  window.location.href = "transaction.html";
-} else if (user.role === "member") {
-  sessionStorage.setItem("buyerName", user.name);
-  window.location.href = "redeem.html";
-}
-
-            
+              if (user.role === "staff") {
+                sessionStorage.setItem("staffName", user.name);
+                window.location.href = "transaction.html";
+              } else if (user.role === "member") {
+                sessionStorage.setItem("buyerName", user.name);
+                window.location.href = "redeem.html";
+              }
+            }
           });
 
-          if (!found && roleType === "staffs") {
-            alert("Invalid credentials. Please try again.");
-          }
-        });
-      });
-    }
-  </script>
-</body>
-</html>
+          // If last role checked and still not
