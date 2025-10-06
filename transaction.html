@@ -24,7 +24,7 @@
     <!-- Staff Section -->
     <div id="staffSection">
       <h2 class="text-lg font-semibold text-center mb-4">
-        Welcome, <span id="staffNameDisplay"></span>
+        Welcome, <span id="staffNameDisplay" class="text-amber-700"></span>
       </h2>
 
       <!-- Search buyer -->
@@ -75,14 +75,18 @@
   </div>
 
   <script>
-    // Ensure staff logged in
+    // ✅ Check staff login session
     document.addEventListener("DOMContentLoaded", () => {
       const staffName = sessionStorage.getItem("staffName");
-      if (!staffName) {
+
+      if (!staffName || staffName === "null") {
+        alert("Session expired or not logged in. Please login as staff again.");
         window.location.href = "index.html";
-      } else {
-        document.getElementById("staffNameDisplay").textContent = staffName;
+        return;
       }
+
+      // Show staff name in header
+      document.getElementById("staffNameDisplay").textContent = staffName;
     });
 
     const db = firebase.database();
@@ -104,7 +108,7 @@
         snapshot.forEach((child) => {
           const data = child.val();
           if (
-            data.name.toLowerCase().includes(query) ||
+            (data.name && data.name.toLowerCase().includes(query)) ||
             (data.phone && data.phone.includes(query))
           ) {
             found = true;
@@ -139,10 +143,12 @@
       }
 
       const newPoints = currentBuyerPoints + totalItems;
-      db.ref("buyers/" + currentBuyerId).update({ points: newPoints });
-
-      document.getElementById("buyerFoundPoints").innerText = newPoints;
-      alert(`✅ Transaction successful! Buyer earned ${totalItems} points.`);
+      db.ref("buyers/" + currentBuyerId).update({ points: newPoints })
+      .then(() => {
+        document.getElementById("buyerFoundPoints").innerText = newPoints;
+        alert(`✅ Transaction successful! Buyer earned ${totalItems} point(s).`);
+      })
+      .catch((err) => alert("Error updating points: " + err.message));
     }
 
     // 🔄 Go to redeem page
