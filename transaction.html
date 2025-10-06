@@ -4,18 +4,22 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Coffee Loyalty - Transaction</title>
+
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
   <script src="firebase.js"></script>
-  <link rel="stylesheet" href="style.css">
+
+  <link rel="stylesheet" href="style.css" />
 </head>
 
 <body class="bg-amber-50 text-gray-800">
   <div class="max-w-md mx-auto mt-10 bg-white rounded-2xl shadow-lg p-6">
-    <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">☕ Staff Transaction Panel</h1>
+    <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">
+      ☕ Staff Transaction Panel
+    </h1>
 
     <!-- Staff Section -->
     <div id="staffSection">
@@ -24,8 +28,11 @@
       </h2>
 
       <!-- Search buyer -->
-      <input id="searchBuyer" class="w-full border rounded p-2 mb-2" placeholder="Search Buyer (Name / Phone)" />
-      <button onclick="searchBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg mb-4">Search</button>
+      <input id="searchBuyer" class="w-full border rounded p-2 mb-2"
+             placeholder="Search Buyer (Name / Phone)" />
+      <button onclick="searchBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg mb-4">
+        Search
+      </button>
 
       <!-- Buyer Info -->
       <div id="buyerInfo" class="hidden border-t pt-3">
@@ -61,20 +68,28 @@
         </div>
       </div>
 
-      <button onclick="logoutStaff()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg mt-6">Logout</button>
+      <button onclick="logoutStaff()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg mt-6">
+        Logout
+      </button>
     </div>
   </div>
 
   <script>
-    // Show staff name from localStorage
-    document.getElementById("staffNameDisplay").innerText = localStorage.getItem("staffName") || "Staff";
+    // Ensure staff logged in
+    document.addEventListener("DOMContentLoaded", () => {
+      const staffName = sessionStorage.getItem("staffName");
+      if (!staffName) {
+        window.location.href = "index.html";
+      } else {
+        document.getElementById("staffNameDisplay").textContent = staffName;
+      }
+    });
 
     const db = firebase.database();
-
     let currentBuyerId = null;
     let currentBuyerPoints = 0;
 
-    // Search Buyer
+    // 🔍 Search Buyer
     function searchBuyer() {
       const query = document.getElementById("searchBuyer").value.trim().toLowerCase();
       if (!query) {
@@ -106,7 +121,7 @@
       });
     }
 
-    // Submit Transaction
+    // 💰 Submit Transaction (adds points based on coffee quantity)
     function submitTransaction() {
       if (!currentBuyerId) {
         alert("Search for a buyer first!");
@@ -127,17 +142,17 @@
       db.ref("buyers/" + currentBuyerId).update({ points: newPoints });
 
       document.getElementById("buyerFoundPoints").innerText = newPoints;
-      alert(`Transaction successful! Buyer earned ${totalItems} points.`);
+      alert(`✅ Transaction successful! Buyer earned ${totalItems} points.`);
     }
 
-    // Go to redeem page
+    // 🔄 Go to redeem page
     function goToRedeem() {
       window.location.href = "redeem.html";
     }
 
-    // Logout
+    // 🚪 Logout
     function logoutStaff() {
-      localStorage.removeItem("staffName");
+      sessionStorage.removeItem("staffName");
       window.location.href = "index.html";
     }
   </script>
