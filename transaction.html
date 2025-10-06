@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coffee Loyalty - Transaction</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
+  <script src="firebase.js"></script>
+</head>
+
+<body class="bg-amber-50 text-gray-800">
+  <div class="max-w-md mx-auto mt-10 bg-white rounded-2xl shadow-lg p-6">
+    <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">☕ Staff Transaction Panel</h1>
+
+    <!-- Staff Login -->
+    <div id="staffLoginSection">
+      <input id="staffName" class="w-full border rounded p-2 mb-2" placeholder="Staff Name" />
+      <input id="staffPassword" type="password" class="w-full border rounded p-2 mb-4" placeholder="Staff Password" />
+      <button onclick="loginStaff()" class="w-full bg-amber-700 text-white p-2 rounded-lg">Login</button>
+    </div>
+
+    <!-- Transaction Section -->
+    <div id="staffSection" class="hidden">
+      <h2 class="text-lg font-semibold text-center mb-4">Welcome, <span id="staffNameDisplay"></span></h2>
+
+      <input id="searchBuyer" class="w-full border rounded p-2 mb-2" placeholder="Search Buyer (Name / Phone)" />
+      <button onclick="searchBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg mb-4">Search</button>
+
+      <div id="buyerInfo" class="hidden">
+        <p><strong>Name:</strong> <span id="buyerFoundName"></span></p>
+        <p><strong>Points:</strong> <span id="buyerFoundPoints"></span></p>
+        <button onclick="addStamp()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-3">Add Stamp (+1)</button>
+      </div>
+
+      <button onclick="logoutStaff()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg mt-4">Logout</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
