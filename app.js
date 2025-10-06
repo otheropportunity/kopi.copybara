@@ -73,3 +73,87 @@ function logoutBuyer() {
   document.getElementById("authSection").classList.remove("hidden");
   document.getElementById("buyerSection").classList.add("hidden");
 }
+
+// === STAFF SESSION ===
+document.addEventListener("DOMContentLoaded", () => {
+  const staffName = sessionStorage.getItem("staffName");
+  if (staffName) {
+    document.getElementById("staffNameDisplay").textContent = staffName;
+  } else {
+    // not logged in → redirect
+    window.location.href = "index.html";
+  }
+});
+
+function logoutStaff() {
+  sessionStorage.removeItem("staffName");
+  window.location.href = "index.html";
+}
+
+// === STAFF FUNCTIONALITY ===
+function searchBuyer() {
+  const keyword = document.getElementById("searchBuyer").value.trim().toLowerCase();
+  if (!keyword) {
+    alert("Please enter a name or phone number.");
+    return;
+  }
+
+  const db = firebase.database();
+  db.ref("buyers").once("value", (snapshot) => {
+    let found = false;
+    snapshot.forEach((child) => {
+      const buyer = child.val();
+      if (
+        buyer.name.toLowerCase().includes(keyword) ||
+        buyer.phone.toLowerCase().includes(keyword)
+      ) {
+        found = true;
+        document.getElementById("buyerInfo").classList.remove("hidden");
+        document.getElementById("buyerFoundName").textContent = buyer.name;
+        document.getElementById("buyerFoundPhone").textContent = buyer.phone;
+        document.getElementById("buyerFoundPoints").textContent = buyer.points || 0;
+
+        // store ref for update
+        sessionStorage.setItem("buyerKey", child.key);
+      }
+    });
+
+    if (!found) {
+      alert("Buyer not found.");
+      document.getElementById("buyerInfo").classList.add("hidden");
+    }
+  });
+}
+
+function addPoint() {
+  const buyerKey = sessionStorage.getItem("buyerKey");
+  if (!buyerKey) return alert("Search a buyer first.");
+
+  const buyerPointsEl = document.getElementById("buyerFoundPoints");
+  let points = parseInt(buyerPointsEl.textContent) || 0;
+  points += 1;
+
+  firebase.database().ref("buyers/" + buyerKey + "/points").set(points);
+  buyerPointsEl.textContent = points;
+  alert("Added +1 point!");
+}
+
+function redeemPoint() {
+  const buyerKey = sessionStorage.getItem("buyerKey");
+  if (!buyerKey) return alert("Search a buyer first.");
+
+  const buyerPointsEl = document.getElementById("buyerFoundPoints");
+  let points = parseInt(buyerPointsEl.textContent) || 0;
+
+  if (points <= 0) {
+    alert("Not enough points to redeem.");
+    return;
+  }
+
+  points -= 1;
+  firebase.database().ref("buyers/" + buyerKey + "/points").set(points);
+  buyerPointsEl.textContent = points;
+  alert("Redeemed -1 point!");
+}
+
+
