@@ -113,7 +113,7 @@
       });
     }
 
-    // Submit transaction
+    // Submit transaction (with confirmation)
     function submitTransaction() {
       if (!currentBuyerId) { alert("Search for a buyer first!"); return; }
 
@@ -122,6 +122,13 @@
       const camericanoQty = parseInt(document.getElementById("camericanoQty").value) || 0;
 
       if (copyarenQty + chocobaraQty + camericanoQty === 0) { alert("Select at least one item!"); return; }
+
+      // 🔸 Confirmation step before proceeding
+      const confirmPurchase = confirm("Are you sure with the input?\n\nCopyaren: " + copyarenQty + "\nChocobara: " + chocobaraQty + "\nCamericano: " + camericanoQty);
+      if (!confirmPurchase) {
+        alert("You can now edit your input before submitting.");
+        return; // stop here if cancelled
+      }
 
       const totalPoints = copyarenQty + chocobaraQty + camericanoQty;
       const newPoints = currentBuyerPoints + totalPoints;
@@ -137,7 +144,8 @@
 
     // Redeem points
     function goToRedeem() {
-      window.location.href = "redeem.html";
+      // ✅ ensure correct navigation
+      window.location.href = "./redeem.html";
     }
 
     // Logout
