@@ -139,7 +139,7 @@
       .catch(err => alert("Error: " + err.message));
     }
 
-    // === Login Logic (FINAL FIXED VERSION) ===
+    // === Login Logic (FULLY FIXED VERSION) ===
     function loginUser() {
       const identifier = document.getElementById("loginIdentifier").value.trim();
       const password = document.getElementById("loginPassword").value.trim();
@@ -149,33 +149,43 @@
         return;
       }
 
-      const allRoles = ["buyers", "staffs"];
+      const rolePaths = ["buyers", "staffs"];
       let found = false;
 
-      Promise.all(allRoles.map(roleType => db.ref(roleType).once("value")))
-        .then(snapshots => {
-          snapshots.forEach(snapshot => {
-            snapshot.forEach(child => {
-              const data = child.val();
+      Promise.all(rolePaths.map(rolePath =>
+        db.ref(rolePath).once("value").then(snapshot => ({ rolePath, snapshot }))
+      ))
+      .then(results => {
+        results.forEach(({ rolePath, snapshot }) => {
+          snapshot.forEach(child => {
+            const data = child.val();
 
-              if ((data.email === identifier || data.phone === identifier) && data.password === password) {
-                found = true;
+            if ((data.email === identifier || data.phone === identifier) && data.password === password) {
+              found = true;
 
-                if (snapshot.key === "staffs") {
-                  sessionStorage.setItem("staffName", data.name);
-                  window.location.href = "transaction.html";
-                } else if (snapshot.key === "buyers") {
-                  sessionStorage.setItem("buyerName", data.name);
-                  window.location.href = "redeem.html";
-                }
+              if (rolePath === "staffs") {
+                sessionStorage.setItem("staffName", data.name);
+                sessionStorage.setItem("userRole", "staff");
+                alert("✅ Welcome, Staff " + data.name);
+                window.location.href = "transaction.html";
+              } else if (rolePath === "buyers") {
+                sessionStorage.setItem("buyerName", data.name);
+                sessionStorage.setItem("userRole", "member");
+                alert("✅ Welcome, " + data.name);
+                window.location.href = "redeem.html";
               }
-            });
+            }
           });
-
-          if (!found) {
-            alert("❌ Invalid credentials. Please try again.");
-          }
-        })
-        .catch(err => {
-          alert("⚠️ Login error: " + err.message);
         });
+
+        if (!found) {
+          alert("❌ Invalid credentials. Please try again.");
+        }
+      })
+      .catch(err => {
+        alert("⚠️ Login error: " + err.message);
+      });
+    }
+  </script>
+</body>
+</html>
