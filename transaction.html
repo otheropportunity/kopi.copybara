@@ -7,23 +7,16 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
   <style>
-    body {
-      background-color: #fffaf0;
-      font-family: 'Poppins', sans-serif;
-    }
+    body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
     .card {
-      background: white;
-      border-radius: 12px;
-      padding: 24px;
-      max-width: 480px;
-      margin: 60px auto;
+      background: white; border-radius: 12px; padding: 24px;
+      max-width: 480px; margin: 60px auto;
       box-shadow: 0 4px 10px rgba(0,0,0,0.1);
     }
     select, input[type="number"] {
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      padding: 4px;
+      border: 1px solid #ccc; border-radius: 6px; padding: 4px;
     }
   </style>
 </head>
@@ -134,6 +127,7 @@
     const db = firebase.database();
 
     let currentBuyerId = null;
+    let currentBuyerName = "";
     let currentBuyerPoints = 0;
     let paymentType = null;
 
@@ -162,21 +156,23 @@
     function searchBuyer() {
       const query = document.getElementById("searchBuyer").value.trim().toLowerCase();
       if (!query) return alert("Enter buyer name or phone!");
-
       db.ref("buyers").once("value", snapshot => {
         let found = false;
         snapshot.forEach(child => {
           const data = child.val();
-          if ((data.name && data.name.toLowerCase().includes(query)) ||
-              (data.phone && data.phone.includes(query))) {
+          if ((data.name && data.name.toLowerCase().includes(query)) || (data.phone && data.phone.includes(query))) {
             found = true;
             currentBuyerId = child.key;
+            currentBuyerName = data.name;
             currentBuyerPoints = data.points || 0;
-            sessionStorage.setItem("currentBuyerId", currentBuyerId);
-            sessionStorage.setItem("buyerPoints", currentBuyerPoints); // ✅ save for redeem.html
             document.getElementById("buyerFoundName").innerText = data.name;
             document.getElementById("buyerFoundPoints").innerText = currentBuyerPoints;
             document.getElementById("buyerInfo").classList.remove("hidden");
+
+            // Store for redeem.html
+            sessionStorage.setItem("currentBuyerId", currentBuyerId);
+            sessionStorage.setItem("currentBuyerName", currentBuyerName);
+            sessionStorage.setItem("currentBuyerPoints", currentBuyerPoints);
           }
         });
         if (!found) alert("Buyer not found!");
@@ -193,7 +189,6 @@
 
       const totalAmount = cQ * prices.copyaren[cS] + bQ * prices.chocobara[bS] + aQ * prices.camericano[aS];
       const totalPoints = cQ + bQ + aQ;
-
       document.getElementById("totalAmount").textContent = totalAmount.toLocaleString();
       document.getElementById("totalPoints").textContent = totalPoints;
 
@@ -208,40 +203,39 @@
     function submitTransaction() {
       if (!currentBuyerId) return alert("Search for a buyer first!");
       if (!paymentType) return alert("Select payment type!");
-
       const { totalAmount, totalPoints } = calculateTotal();
       if (totalAmount === 0) return alert("Please select items!");
 
-      let paidAmount = 0, changeAmount = 0;
+      let change = 0, paid = 0;
       if (paymentType === "CASH") {
-        paidAmount = parseInt(document.getElementById("cashPaid").value) || 0;
-        if (paidAmount < totalAmount) return alert("Customer paid less than total!");
-        changeAmount = paidAmount - totalAmount;
+        paid = parseInt(document.getElementById("cashPaid").value) || 0;
+        if (paid < totalAmount) return alert("❌ Customer payment is less than total!");
+        change = paid - totalAmount;
       }
 
-      const confirmPurchase = confirm(`Confirm transaction?\nTotal: Rp ${totalAmount.toLocaleString()}\nPayment: ${paymentType}`);
-      if (!confirmPurchase) return;
+      const confirmMsg = paymentType === "CASH"
+        ? `Confirm CASH transaction?\nTotal: Rp ${totalAmount.toLocaleString()}\nPaid: Rp ${paid.toLocaleString()}\nChange: Rp ${change.toLocaleString()}`
+        : `Confirm ${paymentType} transaction?\nTotal: Rp ${totalAmount.toLocaleString()}`;
+
+      if (!confirm(confirmMsg)) return;
 
       const newPoints = currentBuyerPoints + totalPoints;
       const staffName = sessionStorage.getItem("staffName") || "Unknown";
-      const now = new Date().toLocaleString("en-GB", { hour12: false });
+      const now = new Date().toLocaleString("en-GB");
 
       db.ref("buyers/" + currentBuyerId).update({ points: newPoints });
-      const transaction = {
+      db.ref("transactions").push({
         buyerId: currentBuyerId,
-        buyerName: document.getElementById("buyerFoundName").innerText,
-        totalPointsEarned: totalPoints,
-        totalAmount,
-        paymentType,
-        paidAmount,
-        changeAmount,
-        staff: staffName,
-        dateTime: now
-      };
-      db.ref("transactions").push(transaction);
+        buyerName: currentBuyerName,
+        totalAmount, totalPointsEarned: totalPoints,
+        paymentType, staff: staffName, dateTime: now,
+        cashPaid: paymentType === "CASH" ? paid : null,
+        change: paymentType === "CASH" ? change : null
+      });
 
-      alert(`✅ Transaction Recorded\nTotal: Rp ${totalAmount.toLocaleString()}\nPayment: ${paymentType}`);
-      sessionStorage.setItem("buyerPoints", newPoints); // ✅ Update for redeem.html
+      sessionStorage.setItem("currentBuyerPoints", newPoints);
+
+      alert(`✅ Transaction Recorded\nTotal: Rp ${totalAmount.toLocaleString()}\nPoints Earned: ${totalPoints}${paymentType === "CASH" ? `\nChange: Rp ${change.toLocaleString()}` : ""}`);
       newTransaction();
     }
 
