@@ -42,6 +42,9 @@
     button:hover {
       opacity: 0.85;
     }
+    .hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -50,7 +53,9 @@
 
     <div id="welcomeSection" class="text-center mb-4">
       <h2 class="text-lg font-semibold text-amber-900" id="welcomeName"></h2>
-      <p class="text-sm text-gray-600">Total Points: <span id="userPoints" class="font-bold text-green-700">0</span></p>
+      <p class="text-sm text-gray-600">
+        Total Points: <span id="userPoints" class="font-bold text-green-700">0</span>
+      </p>
     </div>
 
     <div class="mb-4">
@@ -61,9 +66,26 @@
     <button onclick="logout()" class="w-full bg-red-600 text-white p-2 rounded-lg mt-4">Logout</button>
   </div>
 
+  <!-- Staff Verification Modal -->
+  <div id="staffModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
+    <div class="bg-white rounded-lg p-6 w-80 shadow-lg">
+      <h3 class="text-lg font-semibold text-amber-800 mb-3 text-center">Staff Verification</h3>
+      <p class="text-sm text-gray-600 mb-2 text-center">
+        Please ask staff to enter the master password to confirm this redemption.
+      </p>
+      <input id="staffCodeInput" type="password" placeholder="Enter Staff Master Code"
+        class="w-full border rounded p-2 mb-4 text-center" />
+      <div class="flex justify-between gap-3">
+        <button onclick="cancelStaffVerify()" class="w-1/2 bg-gray-300 text-gray-800 p-2 rounded-lg">Cancel</button>
+        <button onclick="confirmStaffCode()" class="w-1/2 bg-green-700 text-white p-2 rounded-lg">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const db = firebase.database();
     const buyerName = sessionStorage.getItem("buyerName");
+    let selectedItem = null;
 
     document.addEventListener("DOMContentLoaded", () => {
       if (!buyerName) {
@@ -89,7 +111,8 @@
             <p class="font-semibold">${item.name}</p>
             <p class="text-sm text-gray-600">${item.cost} Points</p>
           </div>
-          <button class="bg-green-700 text-white px-3 py-1 rounded-lg" onclick="redeemItem('${item.name}', ${item.cost})">Redeem</button>
+          <button class="bg-green-700 text-white px-3 py-1 rounded-lg"
+            onclick="openStaffModal('${item.name}', ${item.cost})">Redeem</button>
         `;
         listDiv.appendChild(div);
       });
@@ -108,6 +131,28 @@
       });
     }
 
+    // Open staff modal before redeem
+    function openStaffModal(itemName, cost) {
+      selectedItem = { itemName, cost };
+      document.getElementById("staffModal").classList.remove("hidden");
+    }
+
+    function cancelStaffVerify() {
+      selectedItem = null;
+      document.getElementById("staffModal").classList.add("hidden");
+      document.getElementById("staffCodeInput").value = "";
+    }
+
+    function confirmStaffCode() {
+      const code = document.getElementById("staffCodeInput").value.trim();
+      if (code !== "230420") {
+        alert("❌ Invalid staff master password. Please ask staff to assist.");
+        return;
+      }
+      document.getElementById("staffModal").classList.add("hidden");
+      redeemItem(selectedItem.itemName, selectedItem.cost);
+    }
+
     function redeemItem(itemName, cost) {
       const currentPoints = parseInt(document.getElementById("userPoints").textContent);
       if (currentPoints < cost) {
@@ -116,9 +161,7 @@
       }
 
       const newPoints = currentPoints - cost;
-      const userKey = buyerName.toLowerCase().replace(/\s+/g, "_");
 
-      // Update points
       db.ref("buyers").once("value", snapshot => {
         snapshot.forEach(child => {
           const user = child.val();
@@ -130,7 +173,7 @@
               cost,
               date: new Date().toISOString()
             });
-            alert(`🎁 You have redeemed ${itemName} for ${cost} points!`);
+            alert(`🎁 Redemption successful! You redeemed ${itemName} for ${cost} points.`);
             document.getElementById("userPoints").textContent = newPoints;
           }
         });
