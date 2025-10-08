@@ -40,7 +40,7 @@
           <tr>
             <th>Date/Time</th>
             <th>Buyer Name</th>
-            <th>Items</th>
+            <th>Items / Reward</th>
             <th>Points Earned</th>
             <th>Redeemed (pts)</th>
             <th>Staff</th>
@@ -52,7 +52,7 @@
   </div>
 
   <script>
-    // === Firebase config ===
+    // === Firebase Config ===
     const firebaseConfig = {
       apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
       authDomain: "kopi-copybara.firebaseapp.com",
@@ -116,7 +116,7 @@
         });
       });
 
-      // 🟤 Redemptions — now supports `buyer` field too ✅
+      // 🟤 Redemptions (with cost field fix ✅)
       redemptionsSnap.forEach(child => {
         const r = child.val();
         if (!r) return;
@@ -125,11 +125,20 @@
           r.buyerName ||
           r.name ||
           r.memberName ||
-          r.buyer || // ✅ added this line
+          r.buyer ||
           "Unknown";
 
         const itemName = r.itemName || r.item || r.reward || "-";
-        const redeemPoints = r.pointsUsed || r.points || r.redeemPoints || r.redeemedPoints || 0;
+
+        // ✅ Fix: cost is the redeemed points
+        const redeemPoints =
+          r.pointsUsed ||
+          r.points ||
+          r.redeemPoints ||
+          r.redeemedPoints ||
+          r.cost || // <- your actual redemption field
+          0;
+
         const date = r.dateTime || r.timestamp || "-";
         const staff = r.staff || "-";
 
@@ -153,7 +162,7 @@
       const historyTable = document.getElementById("historyTable");
 
       if (sortByName) {
-        // Sort by buyer name (A-Z)
+        // Sort by buyer name (A–Z)
         historyRows.sort((a, b) => {
           const nameA = (a.buyerName || "").toLowerCase();
           const nameB = (b.buyerName || "").toLowerCase();
@@ -176,8 +185,8 @@
           <td>${r.dateTime}</td>
           <td>${r.buyerName}</td>
           <td>${r.items}</td>
-          <td>${r.points}</td>
-          <td>${r.redeem}</td>
+          <td>${r.points !== "-" ? r.points : "-"}</td>
+          <td>${r.redeem !== "-" ? r.redeem + " pts" : "-"}</td>
           <td>${r.staff}</td>
         </tr>
       `).join("");
