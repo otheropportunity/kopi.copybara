@@ -212,6 +212,9 @@
         paidAmount = parseInt(document.getElementById("cashPaid").value) || 0;
         if (paidAmount < totalAmount) return alert("Customer paid less than total!");
         changeAmount = paidAmount - totalAmount;
+
+        // 🔔 Show reminder about giving change
+        alert(`💰 Please don't forget to give change of Rp ${changeAmount.toLocaleString()} to the customer.`);
       }
 
       const confirmPurchase = confirm(
