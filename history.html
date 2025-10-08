@@ -10,8 +10,9 @@
 
   <style>
     body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
-    .card { background: white; border-radius: 12px; padding: 24px; max-width: 1000px; margin: 40px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-    th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; }
+    .card { background: white; border-radius: 12px; padding: 24px; max-width: 1100px; margin: 40px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; }
+    th { cursor: pointer; }
   </style>
 </head>
 
@@ -25,7 +26,12 @@
       <button onclick="window.location.href='transaction.html'" class="bg-amber-700 text-white p-2 px-4 rounded-lg hover:bg-amber-800 transition">
         ⬅ Back
       </button>
-      <span id="staffNameDisplay" class="font-semibold text-amber-700"></span>
+      <div class="flex items-center gap-2">
+        <button id="sortButton" class="bg-amber-600 text-white p-2 px-4 rounded-lg hover:bg-amber-700 transition">
+          🔤 Sort by Name
+        </button>
+        <span id="staffNameDisplay" class="font-semibold text-amber-700"></span>
+      </div>
     </div>
 
     <div class="overflow-x-auto">
@@ -59,6 +65,9 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
+    let historyRows = [];
+    let sortByName = false;
+
     document.addEventListener("DOMContentLoaded", () => {
       const staffName = sessionStorage.getItem("staffName");
       if (!staffName || staffName === "null") {
@@ -69,6 +78,12 @@
       document.getElementById("staffNameDisplay").textContent = "Logged in as: " + staffName;
 
       loadHistory();
+
+      document.getElementById("sortButton").addEventListener("click", () => {
+        sortByName = !sortByName;
+        renderHistory();
+        document.getElementById("sortButton").textContent = sortByName ? "📅 Sort by Date" : "🔤 Sort by Name";
+      });
     });
 
     async function loadHistory() {
@@ -80,18 +95,19 @@
         db.ref("redemptions").once("value")
       ]);
 
-      const historyRows = [];
+      historyRows = [];
 
-      // 🟤 Add all transactions
+      // 🟤 Transactions
       transactionsSnap.forEach(child => {
         const t = child.val();
+        if (!t.buyerName) return;
         const itemList = Object.entries(t.items || {})
           .filter(([_, q]) => q > 0)
           .map(([name, q]) => `${name} (${q})`)
           .join(", ") || "-";
 
         historyRows.push({
-          dateTime: t.dateTime,
+          dateTime: t.dateTime || "-",
           buyerName: t.buyerName,
           items: itemList,
           points: t.totalPointsEarned || 0,
@@ -100,30 +116,40 @@
         });
       });
 
-      // 🟤 Add all redemptions (handle multiple possible key names)
+      // 🟤 Redemptions
       redemptionsSnap.forEach(child => {
         const r = child.val();
-        const redeemPoints =
-          r.pointsUsed ||
-          r.cost ||
-          r.redeemPoints ||
-          r.redeemedPoints ||
-          0;
-
+        if (!r.buyerName) return;
         historyRows.push({
           dateTime: r.dateTime || "-",
-          buyerName: r.buyerName || "-",
-          items: "🎁 Redeemed: " + (r.itemName || r.item || "-"),
+          buyerName: r.buyerName,
+          items: `🎁 Redeemed: ${r.itemName || r.item || "-"}`,
           points: "-",
-          redeem: redeemPoints > 0 ? redeemPoints : "-",
+          redeem: r.pointsUsed || 0,
           staff: r.staff || "-"
         });
       });
 
-      // Sort by most recent
-      historyRows.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
+      renderHistory();
+    }
 
-      // Render table
+    function renderHistory() {
+      const historyTable = document.getElementById("historyTable");
+
+      if (sortByName) {
+        // Sort by buyerName (A-Z), then by date (latest first)
+        historyRows.sort((a, b) => {
+          const nameA = a.buyerName.toLowerCase();
+          const nameB = b.buyerName.toLowerCase();
+          if (nameA < nameB) return -1;
+          if (nameA > nameB) return 1;
+          return new Date(b.dateTime) - new Date(a.dateTime);
+        });
+      } else {
+        // Sort by date (latest first)
+        historyRows.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
+      }
+
       if (historyRows.length === 0) {
         historyTable.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-gray-500">No transactions or redemptions found.</td></tr>`;
         return;
