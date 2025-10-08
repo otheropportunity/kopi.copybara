@@ -39,6 +39,7 @@
     <div class="mb-4">
       <h3 class="font-semibold text-amber-800 mb-2">Select Items</h3>
 
+      <!-- Copyaren -->
       <div class="mb-2">
         <label>Copyaren</label>
         <div class="flex gap-2 mb-1">
@@ -52,6 +53,7 @@
         </div>
       </div>
 
+      <!-- Chocobara -->
       <div class="mb-2">
         <label>Chocobara</label>
         <div class="flex gap-2 mb-1">
@@ -65,6 +67,7 @@
         </div>
       </div>
 
+      <!-- Camericano -->
       <div class="mb-2">
         <label>Camericano</label>
         <div class="flex gap-2 mb-1">
@@ -91,6 +94,20 @@
       <p class="text-center">Total Points: <span id="summaryTotal" class="font-bold text-green-700"></span></p>
       <div class="flex gap-2 mt-4">
         <button onclick="cancelSummary()" class="flex-1 bg-gray-300 p-2 rounded">Cancel</button>
+        <button onclick="askConfirmation()" class="flex-1 bg-green-700 text-white p-2 rounded">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Password Confirmation Modal -->
+  <div id="passwordModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
+    <div class="bg-white rounded p-6 w-80">
+      <h3 class="text-lg font-bold text-center text-amber-800 mb-3">🔐 Authorization Required</h3>
+      <p class="text-sm text-center mb-2">Enter Staff Master Password and Member Password to confirm.</p>
+      <input type="password" id="staffPassword" placeholder="Staff Master Password" class="w-full border p-2 rounded mb-2">
+      <input type="password" id="memberPassword" placeholder="Member Password" class="w-full border p-2 rounded mb-4">
+      <div class="flex gap-2">
+        <button onclick="cancelPassword()" class="flex-1 bg-gray-300 p-2 rounded">Cancel</button>
         <button onclick="confirmRedemption()" class="flex-1 bg-green-700 text-white p-2 rounded">Confirm</button>
       </div>
     </div>
@@ -98,29 +115,31 @@
 
   <script>
     const db = firebase.database();
-    let buyerId, buyerName, buyerPoints, totalCost = 0;
+    let buyerId, buyerName, buyerPoints, buyerPassword, totalCost = 0;
+    const STAFF_MASTER_PASSWORD = "230420";
 
     document.addEventListener("DOMContentLoaded", () => {
       buyerId = sessionStorage.getItem("currentBuyerId");
       buyerName = sessionStorage.getItem("currentBuyerName");
       buyerPoints = parseInt(sessionStorage.getItem("currentBuyerPoints")) || 0;
+
       if (!buyerId) {
-        alert("Session expired.");
+        alert("Session expired. Returning to transaction page.");
         window.location.href = "transaction.html";
         return;
       }
+
+      db.ref("buyers/" + buyerId).once("value").then(snap => {
+        if (snap.exists()) {
+          const data = snap.val();
+          buyerPassword = data.password || "";
+          buyerPoints = data.points || 0;
+          document.getElementById("userPoints").textContent = buyerPoints;
+        }
+      });
+
       document.getElementById("welcomeName").textContent = `Welcome, ${buyerName}!`;
       document.getElementById("userPoints").textContent = buyerPoints;
-
-      // Backup fetch from DB if 0
-      if (buyerPoints === 0) {
-        db.ref("buyers/" + buyerId + "/points").once("value", snap => {
-          if (snap.exists()) {
-            buyerPoints = snap.val();
-            document.getElementById("userPoints").textContent = buyerPoints;
-          }
-        });
-      }
     });
 
     function calculateTotalPoints() {
@@ -146,6 +165,7 @@
       add("copyarenQty","Copyaren","copyarenSize");
       add("chocobaraQty","Chocobara","chocobaraSize");
       add("camericanoQty","Camericano","camericanoSize");
+
       document.getElementById("summaryList").innerHTML = `<ul class='list-disc ml-5'>${items.join("")}</ul>`;
       document.getElementById("summaryTotal").textContent = totalCost;
       document.getElementById("summaryModal").classList.remove("hidden");
@@ -155,19 +175,39 @@
       document.getElementById("summaryModal").classList.add("hidden");
     }
 
+    function askConfirmation() {
+      document.getElementById("summaryModal").classList.add("hidden");
+      const msg = `You want to redeem items worth ${totalCost} points.\nYour total points = ${buyerPoints}.\nAre you sure you want to proceed?`;
+      if (confirm(msg)) {
+        document.getElementById("passwordModal").classList.remove("hidden");
+      }
+    }
+
+    function cancelPassword() {
+      document.getElementById("passwordModal").classList.add("hidden");
+    }
+
     function confirmRedemption() {
-      if (buyerPoints < totalCost) return alert("Not enough points!");
+      const staffPass = document.getElementById("staffPassword").value.trim();
+      const memberPass = document.getElementById("memberPassword").value.trim();
+
+      if (staffPass !== STAFF_MASTER_PASSWORD) return alert("❌ Incorrect staff master password!");
+      if (memberPass !== buyerPassword) return alert("❌ Incorrect member password!");
+      if (buyerPoints < totalCost) return alert("❌ Not enough points!");
+
       const newPoints = buyerPoints - totalCost;
       const redemption = {
         buyerId, buyer: buyerName, date: new Date().toISOString(),
         totalPointsUsed: totalCost
       };
+
       db.ref("buyers/" + buyerId).update({ points: newPoints });
       db.ref("redemptions/" + Date.now()).set(redemption);
+
       buyerPoints = newPoints;
       sessionStorage.setItem("currentBuyerPoints", newPoints);
       document.getElementById("userPoints").textContent = newPoints;
-      document.getElementById("summaryModal").classList.add("hidden");
+      document.getElementById("passwordModal").classList.add("hidden");
       alert("🎉 Redemption successful!");
     }
 
