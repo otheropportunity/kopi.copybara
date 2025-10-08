@@ -63,7 +63,10 @@
       <div id="itemsList" class="space-y-3"></div>
     </div>
 
-    <button onclick="logout()" class="w-full bg-red-600 text-white p-2 rounded-lg mt-4">Logout</button>
+    <div class="flex flex-col gap-2">
+      <button onclick="backToTransaction()" class="w-full bg-gray-400 text-white p-2 rounded-lg">← Back to Transaction</button>
+      <button onclick="logout()" class="w-full bg-red-600 text-white p-2 rounded-lg">Logout</button>
+    </div>
   </div>
 
   <!-- Staff Verification Modal -->
@@ -84,17 +87,25 @@
 
   <script>
     const db = firebase.database();
-    const buyerName = sessionStorage.getItem("buyerName");
+    let buyerId = null;
+    let buyerName = null;
+    let buyerPoints = 0;
     let selectedItem = null;
 
     document.addEventListener("DOMContentLoaded", () => {
-      if (!buyerName) {
-        alert("Session expired. Please login again.");
-        window.location.href = "index.html";
+      // ✅ Load session
+      buyerId = sessionStorage.getItem("currentBuyerId");
+      buyerName = sessionStorage.getItem("currentBuyerName");
+      buyerPoints = parseInt(sessionStorage.getItem("currentBuyerPoints")) || 0;
+
+      if (!buyerId || !buyerName) {
+        alert("Session expired. Please go back to transaction page.");
+        window.location.href = "transaction.html";
         return;
       }
 
       document.getElementById("welcomeName").textContent = `Welcome, ${buyerName}!`;
+      document.getElementById("userPoints").textContent = buyerPoints;
 
       const items = [
         { name: "Copyaren", cost: 10 },
@@ -103,6 +114,7 @@
       ];
 
       const listDiv = document.getElementById("itemsList");
+      listDiv.innerHTML = "";
       items.forEach(item => {
         const div = document.createElement("div");
         div.classList = "border p-3 rounded-lg flex justify-between items-center";
@@ -116,22 +128,9 @@
         `;
         listDiv.appendChild(div);
       });
-
-      loadUserPoints();
     });
 
-    function loadUserPoints() {
-      db.ref("buyers").once("value", snapshot => {
-        snapshot.forEach(child => {
-          const user = child.val();
-          if (user.name === buyerName) {
-            document.getElementById("userPoints").textContent = user.points || 0;
-          }
-        });
-      });
-    }
-
-    // Open staff modal before redeem
+    // ✅ Open staff modal before redeem
     function openStaffModal(itemName, cost) {
       selectedItem = { itemName, cost };
       document.getElementById("staffModal").classList.remove("hidden");
@@ -153,33 +152,40 @@
       redeemItem(selectedItem.itemName, selectedItem.cost);
     }
 
+    // ✅ Redeem process
     function redeemItem(itemName, cost) {
-      const currentPoints = parseInt(document.getElementById("userPoints").textContent);
-      if (currentPoints < cost) {
+      if (buyerPoints < cost) {
         alert("❌ Not enough points to redeem this item!");
         return;
       }
 
-      const newPoints = currentPoints - cost;
+      const newPoints = buyerPoints - cost;
 
-      db.ref("buyers").once("value", snapshot => {
-        snapshot.forEach(child => {
-          const user = child.val();
-          if (user.name === buyerName) {
-            db.ref("buyers/" + child.key + "/points").set(newPoints);
-            db.ref("redemptions/" + Date.now()).set({
-              buyer: buyerName,
-              item: itemName,
-              cost,
-              date: new Date().toISOString()
-            });
-            alert(`🎁 Redemption successful! You redeemed ${itemName} for ${cost} points.`);
-            document.getElementById("userPoints").textContent = newPoints;
-          }
-        });
-      });
+      db.ref("buyers/" + buyerId).update({ points: newPoints })
+        .then(() => {
+          db.ref("redemptions/" + Date.now()).set({
+            buyerId,
+            buyer: buyerName,
+            item: itemName,
+            cost,
+            date: new Date().toISOString()
+          });
+
+          buyerPoints = newPoints;
+          sessionStorage.setItem("currentBuyerPoints", newPoints);
+          document.getElementById("userPoints").textContent = newPoints;
+
+          alert(`🎁 Redemption successful! ${buyerName} redeemed ${itemName} for ${cost} points.`);
+        })
+        .catch(err => alert("Error updating points: " + err.message));
     }
 
+    // ✅ Back to transaction
+    function backToTransaction() {
+      window.location.href = "transaction.html";
+    }
+
+    // ✅ Logout all
     function logout() {
       sessionStorage.clear();
       window.location.href = "index.html";
