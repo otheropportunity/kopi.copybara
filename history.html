@@ -111,7 +111,7 @@
 
       historyRows = [];
 
-      // 🟤 Transactions
+      // 🟤 Transactions (Points Earned)
       transactionsSnap.forEach(child => {
         const t = child.val();
         if (!t || !t.buyerName) return;
@@ -120,31 +120,31 @@
           t.copyarenQty > 0 ? `Copyaren ${t.copyarenSize || ""}ml (${t.copyarenQty})` : "",
           t.chocobaraQty > 0 ? `Chocobara ${t.chocobaraSize || ""}ml (${t.chocobaraQty})` : "",
           t.camericanoQty > 0 ? `Camericano ${t.camericanoSize || ""}ml (${t.camericanoQty})` : ""
-        ].filter(Boolean).join(", ") || "-";
+        ].filter(Boolean).join(", ") || (t.itemName || "-");
 
         historyRows.push({
           dateTime: t.dateTime || "-",
           buyerName: t.buyerName,
-          items: t.itemName,
+          items: itemDetails,
           totalAmount: t.totalAmount || 0,
           paymentType: t.paymentType || "-",
           paidAmount: t.paidAmount || 0,
           changeAmount: t.changeAmount || 0,
-          points: t.totalPointsUsed || 0,
+          points: t.totalPointsEarned || 0, // ✅ fixed
           redeem: "-",
           remainingPoints: "-",
           staff: t.staff || "-"
         });
       });
 
-      // 🟤 Redemptions
+      // 🟤 Redemptions (Points Used)
       redemptionsSnap.forEach(child => {
         const r = child.val();
         if (!r) return;
 
         const buyer = r.buyerName || r.name || "Unknown";
         const itemName = r.itemName || r.reward || "-";
-        const redeemPoints = r.pointsUsed || r.points || 0;
+        const redeemPoints = r.totalPointsUsed || r.pointsUsed || r.points || 0;
         const date = r.dateTime || r.timestamp || "-";
         const staff = r.staff || "-";
 
