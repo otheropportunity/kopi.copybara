@@ -12,9 +12,8 @@
 
   <style>
     body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
-    .card { background: white; border-radius: 12px; padding: 24px; max-width: 450px; margin: 60px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-    button { transition: 0.3s; }
-    button:hover { opacity: 0.85; }
+    .card { background: white; border-radius: 12px; padding: 24px; max-width: 480px; margin: 60px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    select, input[type="number"] { border: 1px solid #ccc; border-radius: 6px; padding: 4px; }
   </style>
 </head>
 
@@ -37,22 +36,66 @@
 
       <h3 class="font-semibold mb-2 text-amber-800 mt-4">Select Items:</h3>
 
-      <div class="flex justify-between mb-2">
-        <span>Copyaren (10,000)</span>
-        <input type="number" id="copyarenQty" min="0" value="0" class="w-16 border rounded text-center">
+      <!-- Copyaren -->
+      <div class="mb-2">
+        <div class="flex justify-between mb-1">
+          <label>Copyaren</label>
+          <input type="number" id="copyarenQty" min="0" value="0" class="w-16 text-center">
+        </div>
+        <select id="copyarenSize" class="w-full">
+          <option value="175">Glass 175ml - Rp 10.000</option>
+          <option value="250">Pocket 250ml - Rp 20.000</option>
+          <option value="500">500ml - Rp 40.000</option>
+          <option value="1000">1L - Rp 80.000</option>
+        </select>
       </div>
 
-      <div class="flex justify-between mb-2">
-        <span>Chocobara (12,000)</span>
-        <input type="number" id="chocobaraQty" min="0" value="0" class="w-16 border rounded text-center">
+      <!-- Chocobara -->
+      <div class="mb-2">
+        <div class="flex justify-between mb-1">
+          <label>Chocobara</label>
+          <input type="number" id="chocobaraQty" min="0" value="0" class="w-16 text-center">
+        </div>
+        <select id="chocobaraSize" class="w-full">
+          <option value="175">Glass 175ml - Rp 12.000</option>
+          <option value="250">Pocket 250ml - Rp 24.000</option>
+          <option value="500">500ml - Rp 48.000</option>
+          <option value="1000">1L - Rp 95.000</option>
+        </select>
       </div>
 
-      <div class="flex justify-between mb-2">
-        <span>Camericano (8,000)</span>
-        <input type="number" id="camericanoQty" min="0" value="0" class="w-16 border rounded text-center">
+      <!-- Camericano -->
+      <div class="mb-2">
+        <div class="flex justify-between mb-1">
+          <label>Camericano</label>
+          <input type="number" id="camericanoQty" min="0" value="0" class="w-16 text-center">
+        </div>
+        <select id="camericanoSize" class="w-full">
+          <option value="175">Glass 175ml - Rp 8.000</option>
+          <option value="250">Pocket 250ml - Rp 15.000</option>
+          <option value="500">500ml - Rp 30.000</option>
+          <option value="1000">1L - Rp 60.000</option>
+        </select>
       </div>
 
-      <button onclick="submitTransaction()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-4">Submit Transaction</button>
+      <!-- Transaction Type -->
+      <div class="mt-3">
+        <label class="font-semibold text-amber-700">Transaction Type:</label>
+        <div class="flex gap-3 mt-1">
+          <button type="button" id="btnQRIS" onclick="setPaymentType('QRIS')" class="flex-1 bg-blue-600 text-white p-2 rounded-lg">QRIS</button>
+          <button type="button" id="btnCash" onclick="setPaymentType('CASH')" class="flex-1 bg-green-600 text-white p-2 rounded-lg">CASH</button>
+        </div>
+        <p class="text-sm mt-1 text-gray-600">Selected: <span id="selectedPayment">None</span></p>
+      </div>
+
+      <!-- Summary -->
+      <div class="mt-4 bg-amber-50 p-3 rounded-lg border border-amber-200">
+        <p><strong>Total Amount:</strong> Rp <span id="totalAmount">0</span></p>
+        <p><strong>Points Earned:</strong> <span id="totalPoints">0</span></p>
+      </div>
+
+      <button onclick="calculateTotal()" class="w-full bg-yellow-600 text-white p-2 rounded-lg mt-3">🧮 Calculate Total</button>
+      <button onclick="submitTransaction()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-3">Submit Transaction</button>
       <button onclick="newTransaction()" class="w-full bg-gray-400 text-white p-2 rounded-lg mt-2">New Transaction</button>
       <button onclick="goToRedeem()" class="w-full bg-blue-700 text-white p-2 rounded-lg mt-3">Redeem Points</button>
     </div>
@@ -78,11 +121,17 @@
 
     let currentBuyerId = null;
     let currentBuyerPoints = 0;
+    let paymentType = null;
 
-    // ✅ Check staff session
+    const prices = {
+      copyaren: {175: 10000, 250: 20000, 500: 40000, 1000: 80000},
+      chocobara: {175: 12000, 250: 24000, 500: 48000, 1000: 95000},
+      camericano: {175: 8000, 250: 15000, 500: 30000, 1000: 60000}
+    };
+
     document.addEventListener("DOMContentLoaded", () => {
       const staffName = sessionStorage.getItem("staffName");
-      if (!staffName || staffName === "null") {
+      if (!staffName) {
         alert("Session expired or not logged in. Please login as staff.");
         window.location.href = "index.html";
         return;
@@ -90,7 +139,11 @@
       document.getElementById("staffNameDisplay").textContent = staffName;
     });
 
-    // 🔍 Search buyer
+    function setPaymentType(type) {
+      paymentType = type;
+      document.getElementById("selectedPayment").textContent = type;
+    }
+
     function searchBuyer() {
       const query = document.getElementById("searchBuyer").value.trim().toLowerCase();
       if (!query) { alert("Enter buyer name or phone!"); return; }
@@ -107,111 +160,91 @@
             document.getElementById("buyerFoundName").innerText = data.name;
             document.getElementById("buyerFoundPoints").innerText = currentBuyerPoints;
             document.getElementById("buyerInfo").classList.remove("hidden");
-
-            // ✅ Save buyer info to sessionStorage (for Redeem page)
             sessionStorage.setItem("currentBuyerId", currentBuyerId);
             sessionStorage.setItem("currentBuyerName", data.name);
-            sessionStorage.setItem("currentBuyerPoints", currentBuyerPoints);
           }
         });
         if (!found) {
           alert("Buyer not found!");
-          currentBuyerId = null;
-          currentBuyerPoints = 0;
-          document.getElementById("buyerInfo").classList.add("hidden");
         }
       });
     }
 
-    // 💰 Submit transaction
-    function submitTransaction() {
-      if (!currentBuyerId) { alert("Search for a buyer first!"); return; }
+    function calculateTotal() {
+      const cQ = parseInt(document.getElementById("copyarenQty").value) || 0;
+      const cS = document.getElementById("copyarenSize").value;
+      const bQ = parseInt(document.getElementById("chocobaraQty").value) || 0;
+      const bS = document.getElementById("chocobaraSize").value;
+      const aQ = parseInt(document.getElementById("camericanoQty").value) || 0;
+      const aS = document.getElementById("camericanoSize").value;
 
-      const copyarenQty = parseInt(document.getElementById("copyarenQty").value) || 0;
-      const chocobaraQty = parseInt(document.getElementById("chocobaraQty").value) || 0;
-      const camericanoQty = parseInt(document.getElementById("camericanoQty").value) || 0;
+      const totalAmount =
+        cQ * prices.copyaren[cS] +
+        bQ * prices.chocobara[bS] +
+        aQ * prices.camericano[aS];
 
-      if (copyarenQty + chocobaraQty + camericanoQty === 0) {
-        alert("Select at least one item!");
-        return;
-      }
+      const totalPoints = cQ + bQ + aQ;
 
-      const confirmPurchase = confirm(`Are you sure with the input?\n\nCopyaren: ${copyarenQty}\nChocobara: ${chocobaraQty}\nCamericano: ${camericanoQty}`);
-      if (!confirmPurchase) return;
-
-      const totalPoints = copyarenQty + chocobaraQty + camericanoQty;
-      const newPoints = currentBuyerPoints + totalPoints;
-
-      db.ref("buyers/" + currentBuyerId).update({ points: newPoints })
-        .then(() => {
-          currentBuyerPoints = newPoints;
-          document.getElementById("buyerFoundPoints").innerText = newPoints;
-
-          sessionStorage.setItem("currentBuyerPoints", newPoints);
-
-          // ✅ Save transaction record with timestamp + staff
-          const now = new Date();
-          const formattedDate = now.toLocaleString("en-GB", {
-            day: "2-digit", month: "2-digit", year: "numeric",
-            hour: "2-digit", minute: "2-digit", second: "2-digit"
-          });
-
-          const staffName = sessionStorage.getItem("staffName") || "Unknown Staff";
-          const transactionData = {
-            buyerId: currentBuyerId,
-            buyerName: document.getElementById("buyerFoundName").innerText,
-            items: {
-              copyaren: copyarenQty,
-              chocobara: chocobaraQty,
-              camericano: camericanoQty
-            },
-            totalPointsEarned: totalPoints,
-            newTotalPoints: newPoints,
-            staff: staffName,
-            dateTime: formattedDate
-          };
-
-          db.ref("transactions").push(transactionData);
-
-          // Reset item inputs
-          document.getElementById("copyarenQty").value = 0;
-          document.getElementById("chocobaraQty").value = 0;
-          document.getElementById("camericanoQty").value = 0;
-
-          alert(`✅ Transaction successful!\nBuyer earned ${totalPoints} point(s).\nTime: ${formattedDate}\nStaff: ${staffName}`);
-        })
-        .catch(err => alert("Error updating points: " + err.message));
+      document.getElementById("totalAmount").textContent = totalAmount.toLocaleString();
+      document.getElementById("totalPoints").textContent = totalPoints;
+      return { totalAmount, totalPoints };
     }
 
-    // 🆕 Start new transaction (reset buyer only)
+    function submitTransaction() {
+      if (!currentBuyerId) return alert("Search for a buyer first!");
+      if (!paymentType) return alert("Select payment type!");
+
+      const { totalAmount, totalPoints } = calculateTotal();
+      if (totalAmount === 0) return alert("Please select items!");
+
+      const confirmPurchase = confirm(`Confirm transaction?\nTotal: Rp ${totalAmount.toLocaleString()}\nPoints Earned: ${totalPoints}\nPayment: ${paymentType}`);
+      if (!confirmPurchase) return;
+
+      const newPoints = currentBuyerPoints + totalPoints;
+      const staffName = sessionStorage.getItem("staffName") || "Unknown";
+      const now = new Date();
+      const dateTime = now.toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+      db.ref("buyers/" + currentBuyerId).update({ points: newPoints });
+
+      const transaction = {
+        buyerId: currentBuyerId,
+        buyerName: document.getElementById("buyerFoundName").innerText,
+        items: {
+          copyaren: document.getElementById("copyarenQty").value,
+          chocobara: document.getElementById("chocobaraQty").value,
+          camericano: document.getElementById("camericanoQty").value
+        },
+        totalPointsEarned: totalPoints,
+        totalAmount: totalAmount,
+        paymentType: paymentType,
+        staff: staffName,
+        dateTime: dateTime
+      };
+
+      db.ref("transactions").push(transaction);
+      alert(`✅ Transaction Recorded\nBuyer earned ${totalPoints} point(s)\nTotal: Rp ${totalAmount.toLocaleString()}`);
+
+      newTransaction();
+    }
+
     function newTransaction() {
       document.getElementById("buyerInfo").classList.add("hidden");
       document.getElementById("searchBuyer").value = "";
       document.getElementById("copyarenQty").value = 0;
       document.getElementById("chocobaraQty").value = 0;
       document.getElementById("camericanoQty").value = 0;
-
-      currentBuyerId = null;
-      currentBuyerPoints = 0;
-
-      sessionStorage.removeItem("currentBuyerId");
-      sessionStorage.removeItem("currentBuyerName");
-      sessionStorage.removeItem("currentBuyerPoints");
+      document.getElementById("totalAmount").textContent = "0";
+      document.getElementById("totalPoints").textContent = "0";
+      document.getElementById("selectedPayment").textContent = "None";
+      paymentType = null;
     }
 
-    // 🔄 Go to redeem page
     function goToRedeem() {
-      if (!currentBuyerId) {
-        alert("Please search a buyer first before redeeming.");
-        return;
-      }
-      sessionStorage.setItem("currentBuyerId", currentBuyerId);
-      sessionStorage.setItem("currentBuyerName", document.getElementById("buyerFoundName").innerText);
-      sessionStorage.setItem("currentBuyerPoints", currentBuyerPoints);
+      if (!currentBuyerId) return alert("Search a buyer first!");
       window.location.href = "redeem.html";
     }
 
-    // 🚪 Logout
     function logoutStaff() {
       sessionStorage.clear();
       window.location.href = "index.html";
