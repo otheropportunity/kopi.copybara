@@ -187,29 +187,49 @@
       document.getElementById("passwordModal").classList.add("hidden");
     }
 
-    function confirmRedemption() {
-      const staffPass = document.getElementById("staffPassword").value.trim();
-      const memberPass = document.getElementById("memberPassword").value.trim();
+  function confirmRedemption() {
+  const staffPass = document.getElementById("staffPassword").value.trim();
+  const memberPass = document.getElementById("memberPassword").value.trim();
 
-      if (staffPass !== STAFF_MASTER_PASSWORD) return alert("❌ Incorrect staff master password!");
-      if (memberPass !== buyerPassword) return alert("❌ Incorrect member password!");
-      if (buyerPoints < totalCost) return alert("❌ Not enough points!");
+  if (staffPass !== STAFF_MASTER_PASSWORD) return alert("❌ Incorrect staff master password!");
+  if (memberPass !== buyerPassword) return alert("❌ Incorrect member password!");
+  if (buyerPoints < totalCost) return alert("❌ Not enough points!");
 
-      const newPoints = buyerPoints - totalCost;
-      const redemption = {
-        buyerId, buyer: buyerName, date: new Date().toISOString(),
-        totalPointsUsed: totalCost
-      };
+  const newPoints = buyerPoints - totalCost;
+  const redemption = {
+    buyerId,
+    buyerName,
+    dateTime: new Date().toLocaleString("en-GB"),
+    totalPointsUsed: totalCost,
+    staff: sessionStorage.getItem("staffName") || "Unknown",
+    type: "Redeem"
+  };
 
-      db.ref("buyers/" + buyerId).update({ points: newPoints });
-      db.ref("redemptions/" + Date.now()).set(redemption);
+  // 🔹 Update buyer’s points
+  db.ref("buyers/" + buyerId).update({ points: newPoints });
 
-      buyerPoints = newPoints;
-      sessionStorage.setItem("currentBuyerPoints", newPoints);
-      document.getElementById("userPoints").textContent = newPoints;
-      document.getElementById("passwordModal").classList.add("hidden");
-      alert("🎉 Redemption successful!");
-    }
+  // 🔹 Save under redemption history
+  db.ref("redemptions/" + Date.now()).set(redemption);
+
+  // 🔹 Also save in transactions for unified history
+  db.ref("transactions").push({
+    buyerId,
+    buyerName,
+    totalAmount: 0,
+    totalPointsEarned: 0,
+    totalPointsUsed: totalCost,
+    paymentType: "REDEEM",
+    staff: sessionStorage.getItem("staffName") || "Unknown",
+    dateTime: new Date().toLocaleString("en-GB")
+  });
+
+  // 🔹 Update local session & UI
+  buyerPoints = newPoints;
+  sessionStorage.setItem("currentBuyerPoints", newPoints);
+  document.getElementById("userPoints").textContent = newPoints;
+  document.getElementById("passwordModal").classList.add("hidden");
+  alert("🎉 Redemption successful!");
+}
 
     function backToTransaction() {
       window.location.href = "transaction.html";
