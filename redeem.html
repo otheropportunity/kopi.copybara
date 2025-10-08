@@ -27,6 +27,7 @@
     .hidden { display: none; }
   </style>
 </head>
+
 <body>
   <div class="card">
     <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">🎁 Redeem Points</h1>
@@ -200,8 +201,6 @@
 
       const newPoints = buyerPoints - totalCost;
       const redeemedItems = JSON.parse(sessionStorage.getItem("redeemItems")) || [];
-
-      // 🔹 Build readable item names for transaction history
       const itemNames = redeemedItems.map(i => `${i.name} - ${i.sizeText} × ${i.qty}`).join(", ");
 
       const redemption = {
@@ -236,26 +235,6 @@
       alert("🎉 Redemption successful!");
     }
 
-const buyerName = document.getElementById("buyerName").value.trim();
-const pointsToUse = totalRedeemPoints; // example: total redeem points to deduct
-
-const memberRef = db.ref("members/" + buyerName);
-
-memberRef.once("value").then(snapshot => {
-  const currentPoints = snapshot.val()?.points || 0;
-  const newPoints = Math.max(0, currentPoints - pointsToUse);
-  memberRef.update({ points: newPoints });
-
-  db.ref("redemptions").push({
-    buyerName: buyerName,
-    pointsUsed: pointsToUse,
-    dateTime: new Date().toLocaleString(),
-    staff: staffName,
-    reward: selectedReward
-  });
-});
-
-    
     function backToTransaction() {
       window.location.href = "transaction.html";
     }
