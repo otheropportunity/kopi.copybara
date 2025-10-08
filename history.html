@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Coffee Loyalty - Transaction History</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -10,47 +10,39 @@
 
   <style>
     body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
-    .card { background: white; border-radius: 12px; padding: 24px; max-width: 900px; margin: 40px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
-    th { background-color: #f1c40f; color: white; }
-    tr:nth-child(even) { background-color: #f9f9f9; }
+    .card { background: white; border-radius: 12px; padding: 24px; max-width: 1000px; margin: 40px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; }
   </style>
 </head>
 
 <body>
   <div class="card">
-    <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">☕ Transaction History</h1>
+    <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">☕ Transaction & Redemption History</h1>
 
     <div class="flex justify-between items-center mb-4">
-      <input type="date" id="filterDate" class="border rounded p-2">
-      <div>
-        <button onclick="filterTransactions()" class="bg-green-700 text-white px-4 py-2 rounded-lg mr-2">Filter by Date</button>
-        <button onclick="exportToExcel()" class="bg-blue-700 text-white px-4 py-2 rounded-lg mr-2">Export to .XLS</button>
-        <button onclick="backToTransaction()" class="bg-gray-500 text-white px-4 py-2 rounded-lg">Back</button>
-      </div>
+      <button onclick="window.location.href='transaction.html'" class="bg-amber-700 text-white p-2 px-4 rounded-lg">⬅ Back</button>
+      <span id="staffNameDisplay" class="font-semibold text-amber-700"></span>
     </div>
 
-    <table id="transactionTable">
-      <thead>
-        <tr>
-          <th>Date & Time</th>
-          <th>Buyer</th>
-          <th>Staff</th>
-          <th>Copyaren</th>
-          <th>Chocobara</th>
-          <th>Camericano</th>
-          <th>Points Earned</th>
-        </tr>
-      </thead>
-      <tbody id="tableBody">
-        <tr><td colspan="7">Loading...</td></tr>
-      </tbody>
-    </table>
+    <div class="overflow-x-auto">
+      <table class="min-w-full bg-white rounded-lg">
+        <thead class="bg-amber-700 text-white">
+          <tr>
+            <th>Date/Time</th>
+            <th>Buyer Name</th>
+            <th>Items</th>
+            <th>Points Earned</th>
+            <th>Redeem</th>
+            <th>Staff</th>
+          </tr>
+        </thead>
+        <tbody id="historyTable" class="text-sm"></tbody>
+      </table>
+    </div>
   </div>
 
   <script>
-    // Firebase config (same as your project)
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
       authDomain: "kopi-copybara.firebaseapp.com",
@@ -63,78 +55,77 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    let transactions = [];
-
-    // Load all transactions on page load
     document.addEventListener("DOMContentLoaded", () => {
-      loadTransactions();
+      const staffName = sessionStorage.getItem("staffName");
+      if (!staffName || staffName === "null") {
+        alert("Session expired or not logged in. Please login as staff.");
+        window.location.href = "index.html";
+        return;
+      }
+      document.getElementById("staffNameDisplay").textContent = "Logged in as: " + staffName;
+
+      loadHistory();
     });
 
-    function loadTransactions() {
-      const tbody = document.getElementById("tableBody");
-      tbody.innerHTML = "<tr><td colspan='7'>Loading...</td></tr>";
+    async function loadHistory() {
+      const historyTable = document.getElementById("historyTable");
+      historyTable.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-gray-500">Loading...</td></tr>`;
 
-      db.ref("transactions").once("value", snapshot => {
-        tbody.innerHTML = "";
-        transactions = [];
-        snapshot.forEach(child => {
-          const data = child.val();
-          transactions.push(data);
-          addRow(data);
+      const transactionsSnap = await db.ref("transactions").once("value");
+      const redemptionsSnap = await db.ref("redemptions").once("value");
+
+      const historyRows = [];
+
+      // 🟤 Add all transactions
+      transactionsSnap.forEach(child => {
+        const t = child.val();
+        const itemList = Object.entries(t.items || {})
+          .filter(([_, q]) => q > 0)
+          .map(([name, q]) => `${name} (${q})`)
+          .join(", ");
+
+        historyRows.push({
+          dateTime: t.dateTime,
+          buyerName: t.buyerName,
+          items: itemList,
+          points: t.totalPointsEarned || 0,
+          redeem: "-",
+          staff: t.staff || "-"
         });
-
-        if (transactions.length === 0) {
-          tbody.innerHTML = "<tr><td colspan='7'>No transactions found.</td></tr>";
-        }
       });
-    }
 
-    function addRow(data) {
-      const tbody = document.getElementById("tableBody");
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td>${data.dateTime || '-'}</td>
-        <td>${data.buyerName || '-'}</td>
-        <td>${data.staff || '-'}</td>
-        <td>${data.items?.copyaren || 0}</td>
-        <td>${data.items?.chocobara || 0}</td>
-        <td>${data.items?.camericano || 0}</td>
-        <td>${data.totalPointsEarned || 0}</td>
-      `;
-      tbody.appendChild(row);
-    }
+      // 🟤 Add all redemptions
+      redemptionsSnap.forEach(child => {
+        const r = child.val();
+        historyRows.push({
+          dateTime: r.dateTime,
+          buyerName: r.buyerName,
+          items: r.itemName || r.item || "-",
+          points: "-",
+          redeem: `${r.pointsUsed || 0} pts`,
+          staff: r.staff || "-"
+        });
+      });
 
-    function filterTransactions() {
-      const filterDate = document.getElementById("filterDate").value;
-      const tbody = document.getElementById("tableBody");
-      tbody.innerHTML = "";
+      // Sort by date (descending)
+      historyRows.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
 
-      if (!filterDate) {
-        transactions.forEach(addRow);
+      // Render rows
+      if (historyRows.length === 0) {
+        historyTable.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-gray-500">No transactions or redemptions found.</td></tr>`;
         return;
       }
 
-      const selectedDate = filterDate.split("-").reverse().join("/"); // convert yyyy-mm-dd → dd/mm/yyyy
-      const filtered = transactions.filter(t => t.dateTime && t.dateTime.startsWith(selectedDate));
-
-      if (filtered.length === 0) {
-        tbody.innerHTML = "<tr><td colspan='7'>No transactions on this date.</td></tr>";
-      } else {
-        filtered.forEach(addRow);
-      }
-    }
-
-    function exportToExcel() {
-      let table = document.getElementById("transactionTable").outerHTML;
-      const blob = new Blob([table], { type: "application/vnd.ms-excel" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "TransactionHistory.xls";
-      link.click();
-    }
-
-    function backToTransaction() {
-      window.location.href = "transaction.html";
+      historyTable.innerHTML = historyRows.map(r => `
+        <tr class="hover:bg-amber-50">
+          <td>${r.dateTime}</td>
+          <td>${r.buyerName}</td>
+          <td>${r.items}</td>
+          <td>${r.points}</td>
+          <td>${r.redeem}</td>
+          <td>${r.staff}</td>
+        </tr>
+      `).join("");
     }
   </script>
 </body>
