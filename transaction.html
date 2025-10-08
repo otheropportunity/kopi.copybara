@@ -51,6 +51,7 @@
       </div>
 
       <button onclick="submitTransaction()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-4">Submit Transaction</button>
+      <button onclick="newTransaction()" class="w-full bg-gray-400 text-white p-2 rounded-lg mt-2">New Transaction</button>
       <button onclick="goToRedeem()" class="w-full bg-blue-700 text-white p-2 rounded-lg mt-3">Redeem Points</button>
     </div>
 
@@ -58,7 +59,7 @@
   </div>
 
   <script>
-    // Firebase configuration
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
       authDomain: "kopi-copybara.firebaseapp.com",
@@ -102,13 +103,18 @@
             document.getElementById("buyerFoundName").innerText = data.name;
             document.getElementById("buyerFoundPoints").innerText = currentBuyerPoints;
             document.getElementById("buyerInfo").classList.remove("hidden");
+
+            // ✅ Save buyer info to sessionStorage (for Redeem page)
+            sessionStorage.setItem("currentBuyerId", currentBuyerId);
+            sessionStorage.setItem("currentBuyerName", data.name);
+            sessionStorage.setItem("currentBuyerPoints", currentBuyerPoints);
           }
         });
         if (!found) {
+          alert("Buyer not found!");
           currentBuyerId = null;
           currentBuyerPoints = 0;
           document.getElementById("buyerInfo").classList.add("hidden");
-          alert("Buyer not found!");
         }
       });
     }
@@ -134,25 +140,47 @@
           currentBuyerPoints = newPoints;
           document.getElementById("buyerFoundPoints").innerText = newPoints;
 
-          // ✅ Clear all input fields and search
+          // ✅ Update session storage for Redeem
+          sessionStorage.setItem("currentBuyerPoints", newPoints);
+
+          // ✅ Reset item inputs
           document.getElementById("copyarenQty").value = 0;
           document.getElementById("chocobaraQty").value = 0;
           document.getElementById("camericanoQty").value = 0;
-          document.getElementById("searchBuyer").value = "";
 
           alert(`✅ Transaction successful! Buyer earned ${totalPoints} point(s).`);
         })
         .catch(err => alert("Error updating points: " + err.message));
     }
 
+    // 🆕 Start new transaction
+    function newTransaction() {
+      document.getElementById("buyerInfo").classList.add("hidden");
+      document.getElementById("searchBuyer").value = "";
+      document.getElementById("copyarenQty").value = 0;
+      document.getElementById("chocobaraQty").value = 0;
+      document.getElementById("camericanoQty").value = 0;
+
+      currentBuyerId = null;
+      currentBuyerPoints = 0;
+
+      sessionStorage.removeItem("currentBuyerId");
+      sessionStorage.removeItem("currentBuyerName");
+      sessionStorage.removeItem("currentBuyerPoints");
+    }
+
     // 🔄 Go to redeem page
     function goToRedeem() {
+      if (!currentBuyerId) {
+        alert("Please search a buyer first before redeeming.");
+        return;
+      }
       window.location.href = "redeem.html";
     }
 
     // 🚪 Logout
     function logoutStaff() {
-      sessionStorage.removeItem("staffName");
+      sessionStorage.clear();
       window.location.href = "index.html";
     }
   </script>
