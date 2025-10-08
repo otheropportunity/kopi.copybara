@@ -74,7 +74,7 @@
     let currentBuyerId = null;
     let currentBuyerPoints = 0;
 
-    // Check staff session
+    // ✅ Check staff session
     document.addEventListener("DOMContentLoaded", () => {
       const staffName = sessionStorage.getItem("staffName");
       if (!staffName || staffName === "null") {
@@ -85,7 +85,7 @@
       document.getElementById("staffNameDisplay").textContent = staffName;
     });
 
-    // Search buyer
+    // 🔍 Search buyer
     function searchBuyer() {
       const query = document.getElementById("searchBuyer").value.trim().toLowerCase();
       if (!query) { alert("Enter buyer name or phone!"); return; }
@@ -113,7 +113,7 @@
       });
     }
 
-    // Submit transaction (with confirmation)
+    // 💰 Submit transaction
     function submitTransaction() {
       if (!currentBuyerId) { alert("Search for a buyer first!"); return; }
 
@@ -123,12 +123,8 @@
 
       if (copyarenQty + chocobaraQty + camericanoQty === 0) { alert("Select at least one item!"); return; }
 
-      // 🔸 Confirmation step before proceeding
-      const confirmPurchase = confirm("Are you sure with the input?\n\nCopyaren: " + copyarenQty + "\nChocobara: " + chocobaraQty + "\nCamericano: " + camericanoQty);
-      if (!confirmPurchase) {
-        alert("You can now edit your input before submitting.");
-        return; // stop here if cancelled
-      }
+      const confirmPurchase = confirm(`Are you sure with the input?\n\nCopyaren: ${copyarenQty}\nChocobara: ${chocobaraQty}\nCamericano: ${camericanoQty}`);
+      if (!confirmPurchase) return;
 
       const totalPoints = copyarenQty + chocobaraQty + camericanoQty;
       const newPoints = currentBuyerPoints + totalPoints;
@@ -137,18 +133,24 @@
         .then(() => {
           currentBuyerPoints = newPoints;
           document.getElementById("buyerFoundPoints").innerText = newPoints;
+
+          // ✅ Clear all input fields and search
+          document.getElementById("copyarenQty").value = 0;
+          document.getElementById("chocobaraQty").value = 0;
+          document.getElementById("camericanoQty").value = 0;
+          document.getElementById("searchBuyer").value = "";
+
           alert(`✅ Transaction successful! Buyer earned ${totalPoints} point(s).`);
         })
         .catch(err => alert("Error updating points: " + err.message));
     }
 
-    // Redeem points
+    // 🔄 Go to redeem page
     function goToRedeem() {
-      // ✅ ensure correct navigation
-      window.location.href = "./redeem.html";
+      window.location.href = "redeem.html";
     }
 
-    // Logout
+    // 🚪 Logout
     function logoutStaff() {
       sessionStorage.removeItem("staffName");
       window.location.href = "index.html";
