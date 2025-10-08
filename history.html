@@ -125,12 +125,12 @@
         historyRows.push({
           dateTime: t.dateTime || "-",
           buyerName: t.buyerName,
-          items: itemDetails,
+          items: t.itemName,
           totalAmount: t.totalAmount || 0,
           paymentType: t.paymentType || "-",
           paidAmount: t.paidAmount || 0,
           changeAmount: t.changeAmount || 0,
-          points: t.totalPointsEarned || 0,
+          points: t.totalPointsUsed || 0,
           redeem: "-",
           remainingPoints: "-",
           staff: t.staff || "-"
