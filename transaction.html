@@ -22,7 +22,9 @@
   <div class="card">
     <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">☕ Staff Transaction Panel</h1>
 
-    <h2 class="text-lg font-semibold text-center mb-4">Welcome, <span id="staffNameDisplay" class="text-amber-700"></span></h2>
+    <h2 class="text-lg font-semibold text-center mb-4">
+      Welcome, <span id="staffNameDisplay" class="text-amber-700"></span>
+    </h2>
 
     <!-- Search Buyer -->
     <input id="searchBuyer" class="w-full border rounded p-2 mb-2" placeholder="Search Buyer (Name / Phone)" />
@@ -153,7 +155,7 @@
         .catch(err => alert("Error updating points: " + err.message));
     }
 
-    // 🆕 Start new transaction
+    // 🆕 Start new transaction (reset buyer only)
     function newTransaction() {
       document.getElementById("buyerInfo").classList.add("hidden");
       document.getElementById("searchBuyer").value = "";
@@ -164,17 +166,24 @@
       currentBuyerId = null;
       currentBuyerPoints = 0;
 
+      // Clear only buyer info, not staff session
       sessionStorage.removeItem("currentBuyerId");
       sessionStorage.removeItem("currentBuyerName");
       sessionStorage.removeItem("currentBuyerPoints");
     }
 
-    // 🔄 Go to redeem page
+    // 🔄 Go to redeem page (fix session expired)
     function goToRedeem() {
       if (!currentBuyerId) {
         alert("Please search a buyer first before redeeming.");
         return;
       }
+
+      // ✅ Ensure latest buyer info saved before navigation
+      sessionStorage.setItem("currentBuyerId", currentBuyerId);
+      sessionStorage.setItem("currentBuyerName", document.getElementById("buyerFoundName").innerText);
+      sessionStorage.setItem("currentBuyerPoints", currentBuyerPoints);
+
       window.location.href = "redeem.html";
     }
 
