@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coffee Loyalty - Transaction History</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+  <style>
+    body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
+    .card { background: white; border-radius: 12px; padding: 24px; max-width: 900px; margin: 40px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+    th { background-color: #f1c40f; color: white; }
+    tr:nth-child(even) { background-color: #f9f9f9; }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">☕ Transaction History</h1>
+
+    <div class="flex justify-between items-center mb-4">
+      <input type="date" id="filterDate" class="border rounded p-2">
+      <div>
+        <button onclick="filterTransactions()" class="bg-green-700 text-white px-4 py-2 rounded-lg mr-2">Filter by Date</button>
+        <button onclick="exportToExcel()" class="bg-blue-700 text-white px-4 py-2 rounded-lg mr-2">Export to .XLS</button>
+        <button onclick="backToTransaction()" class="bg-gray-500 text-white px-4 py-2 rounded-lg">Back</button>
+      </div>
+    </div>
+
+    <table id="transactionTable">
+      <thead>
+        <tr>
+          <th>Date & Time</th>
+          <th>Buyer</th>
+          <th>Staff</th>
+          <th>Copyaren</th>
+          <th>Chocobara</th>
+          <th>Camericano</th>
+          <th>Points Earned</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="7">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    // Firebase config (same as your project)
+    const firebaseConfig = {
+      apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
+      authDomain: "kopi-copybara.firebaseapp.com",
+      databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "kopi-copybara",
+      storageBucket: "kopi-copybara.appspot.com",
+      messagingSenderId: "729875984861",
+      appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let transactions = [];
+
+    // Load all transactions on page load
+    document.addEventListener("DOMContentLoaded", () => {
+      loadTransactions();
+    });
+
+    function loadTransactions() {
+      const tbody = document.getElementById("tableBody");
+      tbody.innerHTML = "<tr><td colspan='7'>Loading...</td></tr>";
+
+      db.ref("transactions").once("value", snapshot => {
+        tbody.innerHTML = "";
+        transactions = [];
+        snapshot.forEach(child => {
+          const data = child.val();
+          transactions.push(data);
+          addRow(data);
+        });
+
+        if (transactions.length === 0) {
+          tbody.innerHTML = "<tr><td colspan='7'>No transactions found.</td></tr>";
+        }
+      });
+    }
+
+    function addRow(data) {
+      const tbody = document.getElementById("tableBody");
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${data.dateTime || '-'}</td>
+        <td>${data.buyerName || '-'}</td>
+        <td>${data.staff || '-'}</td>
+        <td>${data.items?.copyaren || 0}</td>
+        <td>${data.items?.chocobara || 0}</td>
+        <td>${data.items?.camericano || 0}</td>
+        <td>${data.totalPointsEarned || 0}</td>
+      `;
+      tbody.appendChild(row);
+    }
+
+    function filterTransactions() {
+      const filterDate = document.getElementById("filterDate").value;
+      const tbody = document.getElementById("tableBody");
+      tbody.innerHTML = "";
+
+      if (!filterDate) {
+        transactions.forEach(addRow);
+        return;
+      }
+
+      const selectedDate = filterDate.split("-").reverse().join("/"); // convert yyyy-mm-dd → dd/mm/yyyy
+      const filtered = transactions.filter(t => t.dateTime && t.dateTime.startsWith(selectedDate));
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='7'>No transactions on this date.</td></tr>";
+      } else {
+        filtered.forEach(addRow);
+      }
+    }
+
+    function exportToExcel() {
+      let table = document.getElementById("transactionTable").outerHTML;
+      const blob = new Blob([table], { type: "application/vnd.ms-excel" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "TransactionHistory.xls";
+      link.click();
+    }
+
+    function backToTransaction() {
+      window.location.href = "transaction.html";
+    }
+  </script>
+</body>
+</html>
