@@ -116,24 +116,30 @@
         });
       });
 
-      // 🟤 Redemptions — detect possible field variations
+      // 🟤 Redemptions — now supports `buyer` field too ✅
       redemptionsSnap.forEach(child => {
         const r = child.val();
         if (!r) return;
 
-        const buyer = r.buyerName || r.name || r.memberName || "Unknown";
+        const buyer =
+          r.buyerName ||
+          r.name ||
+          r.memberName ||
+          r.buyer || // ✅ added this line
+          "Unknown";
+
         const itemName = r.itemName || r.item || r.reward || "-";
         const redeemPoints = r.pointsUsed || r.points || r.redeemPoints || r.redeemedPoints || 0;
         const date = r.dateTime || r.timestamp || "-";
         const staff = r.staff || "-";
 
-        // Skip if no actual redemption info
+        // Skip empty records
         if (buyer === "Unknown" && itemName === "-" && redeemPoints === 0) return;
 
         historyRows.push({
           dateTime: date,
           buyerName: buyer,
-          items: `🎁 Redeemed: ${itemName}`,
+          items: itemName,
           points: "-",
           redeem: redeemPoints,
           staff: staff
@@ -147,7 +153,7 @@
       const historyTable = document.getElementById("historyTable");
 
       if (sortByName) {
-        // Sort by buyer name then date
+        // Sort by buyer name (A-Z)
         historyRows.sort((a, b) => {
           const nameA = (a.buyerName || "").toLowerCase();
           const nameB = (b.buyerName || "").toLowerCase();
@@ -156,7 +162,7 @@
           return new Date(b.dateTime) - new Date(a.dateTime);
         });
       } else {
-        // Sort by latest date first
+        // Sort by latest date
         historyRows.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
       }
 
