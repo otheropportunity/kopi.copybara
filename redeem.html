@@ -236,6 +236,26 @@
       alert("🎉 Redemption successful!");
     }
 
+const buyerName = document.getElementById("buyerName").value.trim();
+const pointsToUse = totalRedeemPoints; // example: total redeem points to deduct
+
+const memberRef = db.ref("members/" + buyerName);
+
+memberRef.once("value").then(snapshot => {
+  const currentPoints = snapshot.val()?.points || 0;
+  const newPoints = Math.max(0, currentPoints - pointsToUse);
+  memberRef.update({ points: newPoints });
+
+  db.ref("redemptions").push({
+    buyerName: buyerName,
+    pointsUsed: pointsToUse,
+    dateTime: new Date().toLocaleString(),
+    staff: staffName,
+    reward: selectedReward
+  });
+});
+
+    
     function backToTransaction() {
       window.location.href = "transaction.html";
     }
