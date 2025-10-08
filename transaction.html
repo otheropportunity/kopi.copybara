@@ -200,45 +200,50 @@
       return { totalAmount, totalPoints };
     }
 
-    function submitTransaction() {
-      if (!currentBuyerId) return alert("Search for a buyer first!");
-      if (!paymentType) return alert("Select payment type!");
-      const { totalAmount, totalPoints } = calculateTotal();
-      if (totalAmount === 0) return alert("Please select items!");
+function submitTransaction() {
+  if (!currentBuyerId) return alert("Search for a buyer first!");
+  if (!paymentType) return alert("Select payment type!");
+  const { totalAmount, totalPoints } = calculateTotal();
+  if (totalAmount === 0) return alert("Please select items!");
 
-      let change = 0, paid = 0;
-      if (paymentType === "CASH") {
-        paid = parseInt(document.getElementById("cashPaid").value) || 0;
-        if (paid < totalAmount) return alert("❌ Customer payment is less than total!");
-        change = paid - totalAmount;
-      }
+  const confirmPurchase = confirm(
+    `Confirm transaction?\nTotal: Rp ${totalAmount.toLocaleString()}\nPayment: ${paymentType}`
+  );
+  if (!confirmPurchase) return;
 
-      const confirmMsg = paymentType === "CASH"
-        ? `Confirm CASH transaction?\nTotal: Rp ${totalAmount.toLocaleString()}\nPaid: Rp ${paid.toLocaleString()}\nChange: Rp ${change.toLocaleString()}`
-        : `Confirm ${paymentType} transaction?\nTotal: Rp ${totalAmount.toLocaleString()}`;
+  const paidAmount = paymentType === "CASH"
+    ? parseInt(document.getElementById("cashPaid").value) || 0
+    : totalAmount;
+  const changeAmount =
+    paymentType === "CASH" ? Math.max(0, paidAmount - totalAmount) : 0;
 
-      if (!confirm(confirmMsg)) return;
+  const newPoints = currentBuyerPoints + totalPoints;
+  const staffName = sessionStorage.getItem("staffName") || "Unknown";
+  const now = new Date().toLocaleString("en-GB");
 
-      const newPoints = currentBuyerPoints + totalPoints;
-      const staffName = sessionStorage.getItem("staffName") || "Unknown";
-      const now = new Date().toLocaleString("en-GB");
+  db.ref("buyers/" + currentBuyerId).update({ points: newPoints });
 
-      db.ref("buyers/" + currentBuyerId).update({ points: newPoints });
-      db.ref("transactions").push({
-        buyerId: currentBuyerId,
-        buyerName: currentBuyerName,
-        totalAmount, totalPointsEarned: totalPoints,
-        paymentType, staff: staffName, dateTime: now,
-        cashPaid: paymentType === "CASH" ? paid : null,
-        change: paymentType === "CASH" ? change : null
-      });
+  db.ref("transactions").push({
+    buyerId: currentBuyerId,
+    buyerName: currentBuyerName,
+    totalAmount,
+    totalPointsEarned: totalPoints,
+    paymentType,
+    paidAmount,
+    changeAmount,
+    staff: staffName,
+    dateTime: now
+  });
 
-      sessionStorage.setItem("currentBuyerPoints", newPoints);
+  sessionStorage.setItem("currentBuyerPoints", newPoints);
 
-      alert(`✅ Transaction Recorded\nTotal: Rp ${totalAmount.toLocaleString()}\nPoints Earned: ${totalPoints}${paymentType === "CASH" ? `\nChange: Rp ${change.toLocaleString()}` : ""}`);
-      newTransaction();
-    }
+  alert(
+    `✅ Transaction Recorded\nTotal: Rp ${totalAmount.toLocaleString()}\nPoints Earned: ${totalPoints}\nChange: Rp ${changeAmount.toLocaleString()}`
+  );
+  newTransaction();
+}
 
+    
     function newTransaction() {
       document.getElementById("buyerInfo").classList.add("hidden");
       document.getElementById("searchBuyer").value = "";
