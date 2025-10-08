@@ -1,164 +1,144 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kopi Copybara - Redeem Points</title>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
   <script>
-    // 🔥 Firebase Config
     const firebaseConfig = {
       apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
       authDomain: "kopi-copybara.firebaseapp.com",
+      databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
       projectId: "kopi-copybara",
-      storageBucket: "kopi-copybara.firebasestorage.app",
+      storageBucket: "kopi-copybara.appspot.com",
       messagingSenderId: "729875984861",
       appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
     };
-
-    const app = firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db = firebase.database();
+    firebase.initializeApp(firebaseConfig);
   </script>
 
   <style>
     body {
+      background-color: #fffaf0;
       font-family: 'Poppins', sans-serif;
-      background-color: #fdf6ec;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
     }
-    .redeem-container {
+    .card {
       background: white;
-      padding: 30px;
       border-radius: 12px;
-      box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
-      width: 360px;
-      text-align: center;
-    }
-    select, button, input {
-      width: 100%;
-      margin-top: 10px;
-      padding: 12px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-      box-sizing: border-box;
+      padding: 24px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      max-width: 450px;
+      margin: 40px auto;
     }
     button {
-      background: #8b4513;
-      color: white;
-      font-weight: bold;
-      border: none;
-      cursor: pointer;
       transition: 0.3s;
     }
     button:hover {
-      background: #5c3311;
-    }
-    h2 {
-      color: #8b4513;
-    }
-    #message {
-      margin-top: 10px;
-      font-weight: 600;
-    }
-    .logout {
-      margin-top: 15px;
-      background: #ccc;
-      color: #000;
+      opacity: 0.85;
     }
   </style>
 </head>
 <body>
-  <div class="redeem-container">
-    <h2>Welcome, <span id="memberName"></span> ☕</h2>
-    <p>Your Current Points: <strong id="points">0</strong></p>
+  <div class="card">
+    <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">☕ Kopi Copybara - Redeem Points</h1>
 
-    <h3>Redeem Your Reward</h3>
-    <select id="rewardSelect">
-      <option value="">-- Select Reward --</option>
-      <option value="Free Coffee|50">Free Coffee – 50 Points</option>
-      <option value="Discount Voucher|100">Discount Voucher – 100 Points</option>
-      <option value="Tumbler Gift|200">Tumbler Gift – 200 Points</option>
-    </select>
+    <div id="welcomeSection" class="text-center mb-4">
+      <h2 class="text-lg font-semibold text-amber-900" id="welcomeName"></h2>
+      <p class="text-sm text-gray-600">Total Points: <span id="userPoints" class="font-bold text-green-700">0</span></p>
+    </div>
 
-    <button onclick="redeemReward()">Redeem</button>
-    <p id="message"></p>
+    <div class="mb-4">
+      <h3 class="text-lg font-semibold text-amber-800 mb-2">Redeemable Items</h3>
+      <div id="itemsList" class="space-y-3"></div>
+    </div>
 
-    <button class="logout" onclick="logout()">Logout</button>
+    <button onclick="logout()" class="w-full bg-red-600 text-white p-2 rounded-lg mt-4">Logout</button>
   </div>
 
   <script>
-    let currentUserEmail = localStorage.getItem("userEmail");
-    let memberNameEl = document.getElementById("memberName");
-    let pointsEl = document.getElementById("points");
-    let messageEl = document.getElementById("message");
+    const db = firebase.database();
+    const buyerName = sessionStorage.getItem("buyerName");
 
-    if (!currentUserEmail) {
-      window.location.href = "index.html";
-    }
-
-    // Simulate email key (replace . with _ for Firebase path)
-    const userKey = currentUserEmail.replace(/[.@]/g, "_");
-
-    const userRef = db.ref("buyers/" + userKey);
-
-    // Load user data
-    userRef.once("value").then(snapshot => {
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        memberNameEl.textContent = data.name || "Member";
-        pointsEl.textContent = data.points || 0;
-      } else {
-        memberNameEl.textContent = "Unknown";
-        pointsEl.textContent = "0";
-      }
-    });
-
-    async function redeemReward() {
-      const rewardData = document.getElementById("rewardSelect").value;
-      if (!rewardData) {
-        messageEl.textContent = "Please select a reward.";
-        messageEl.style.color = "red";
+    document.addEventListener("DOMContentLoaded", () => {
+      if (!buyerName) {
+        alert("Session expired. Please login again.");
+        window.location.href = "index.html";
         return;
       }
 
-      const [rewardName, rewardCost] = rewardData.split("|");
-      const cost = parseInt(rewardCost);
+      document.getElementById("welcomeName").textContent = `Welcome, ${buyerName}!`;
 
-      const snapshot = await userRef.once("value");
-      if (!snapshot.exists()) return;
+      const items = [
+        { name: "Copyaren", cost: 10 },
+        { name: "Chocobara", cost: 12 },
+        { name: "Camericano", cost: 8 }
+      ];
 
-      const userData = snapshot.val();
-      let currentPoints = userData.points || 0;
+      const listDiv = document.getElementById("itemsList");
+      items.forEach(item => {
+        const div = document.createElement("div");
+        div.classList = "border p-3 rounded-lg flex justify-between items-center";
+        div.innerHTML = `
+          <div>
+            <p class="font-semibold">${item.name}</p>
+            <p class="text-sm text-gray-600">${item.cost} Points</p>
+          </div>
+          <button class="bg-green-700 text-white px-3 py-1 rounded-lg" onclick="redeemItem('${item.name}', ${item.cost})">Redeem</button>
+        `;
+        listDiv.appendChild(div);
+      });
 
+      loadUserPoints();
+    });
+
+    function loadUserPoints() {
+      db.ref("buyers").once("value", snapshot => {
+        snapshot.forEach(child => {
+          const user = child.val();
+          if (user.name === buyerName) {
+            document.getElementById("userPoints").textContent = user.points || 0;
+          }
+        });
+      });
+    }
+
+    function redeemItem(itemName, cost) {
+      const currentPoints = parseInt(document.getElementById("userPoints").textContent);
       if (currentPoints < cost) {
-        messageEl.textContent = "❌ Not enough points to redeem this reward.";
-        messageEl.style.color = "red";
+        alert("❌ Not enough points to redeem this item!");
         return;
       }
 
       const newPoints = currentPoints - cost;
+      const userKey = buyerName.toLowerCase().replace(/\s+/g, "_");
 
-      await userRef.update({
-        points: newPoints,
-        lastRedeem: {
-          reward: rewardName,
-          date: new Date().toISOString()
-        }
+      // Update points
+      db.ref("buyers").once("value", snapshot => {
+        snapshot.forEach(child => {
+          const user = child.val();
+          if (user.name === buyerName) {
+            db.ref("buyers/" + child.key + "/points").set(newPoints);
+            db.ref("redemptions/" + Date.now()).set({
+              buyer: buyerName,
+              item: itemName,
+              cost,
+              date: new Date().toISOString()
+            });
+            alert(`🎁 You have redeemed ${itemName} for ${cost} points!`);
+            document.getElementById("userPoints").textContent = newPoints;
+          }
+        });
       });
-
-      pointsEl.textContent = newPoints;
-      messageEl.textContent = `✅ Successfully redeemed "${rewardName}"! Points left: ${newPoints}`;
-      messageEl.style.color = "green";
     }
 
     function logout() {
-      localStorage.removeItem("userEmail");
-      localStorage.removeItem("userRole");
+      sessionStorage.clear();
       window.location.href = "index.html";
     }
   </script>
