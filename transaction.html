@@ -248,9 +248,15 @@ function newTransaction() {
 
 function goToRedeem() {
   if (!currentBuyerId) return alert("Search a buyer first!");
+  
+  // Save current buyer info so redeem.html can read it
+  sessionStorage.setItem("buyerId", currentBuyerId);
+  sessionStorage.setItem("buyerName", document.getElementById("buyerFoundName").innerText);
+  sessionStorage.setItem("buyerPoints", currentBuyerPoints);
+  
   window.location.href = "redeem.html";
 }
-
+  
 function logoutStaff() {
   sessionStorage.clear();
   window.location.href = "index.html";
