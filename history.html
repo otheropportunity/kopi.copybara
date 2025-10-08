@@ -100,23 +100,30 @@
         });
       });
 
-      // 🟤 Add all redemptions (with redemption cost)
+      // 🟤 Add all redemptions (handle multiple possible key names)
       redemptionsSnap.forEach(child => {
         const r = child.val();
+        const redeemPoints =
+          r.pointsUsed ||
+          r.cost ||
+          r.redeemPoints ||
+          r.redeemedPoints ||
+          0;
+
         historyRows.push({
-          dateTime: r.dateTime,
-          buyerName: r.buyerName,
-          items: r.itemName || r.item || "-",
+          dateTime: r.dateTime || "-",
+          buyerName: r.buyerName || "-",
+          items: "🎁 Redeemed: " + (r.itemName || r.item || "-"),
           points: "-",
-          redeem: r.pointsUsed ? `${r.pointsUsed}` : "-",
+          redeem: redeemPoints > 0 ? redeemPoints : "-",
           staff: r.staff || "-"
         });
       });
 
-      // Sort by date descending
+      // Sort by most recent
       historyRows.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
 
-      // Render rows
+      // Render table
       if (historyRows.length === 0) {
         historyTable.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-gray-500">No transactions or redemptions found.</td></tr>`;
         return;
