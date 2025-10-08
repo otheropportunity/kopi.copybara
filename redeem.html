@@ -91,7 +91,7 @@
     <div class="bg-white rounded p-6 w-80">
       <h3 class="text-lg font-bold text-amber-800 mb-2 text-center">Confirm Redemption</h3>
       <div id="summaryList" class="text-sm mb-3"></div>
-      <p class="text-center">Total Points Used: <span id="summaryTotal" class="font-bold text-green-700"></span></p>
+      <p class="text-center">Total Points: <span id="summaryTotal" class="font-bold text-green-700"></span></p>
       <div class="flex gap-2 mt-4">
         <button onclick="cancelSummary()" class="flex-1 bg-gray-300 p-2 rounded">Cancel</button>
         <button onclick="askConfirmation()" class="flex-1 bg-green-700 text-white p-2 rounded">Next</button>
@@ -115,14 +115,12 @@
 
   <script>
     const db = firebase.database();
-    let buyerId, buyerName, buyerPoints = 0, buyerPassword = "";
-    let totalCost = 0;
     const STAFF_MASTER_PASSWORD = "230420";
+    let buyerId, buyerName, buyerPoints = 0, buyerPassword = "";
 
     document.addEventListener("DOMContentLoaded", () => {
       buyerId = sessionStorage.getItem("currentBuyerId");
       buyerName = sessionStorage.getItem("currentBuyerName");
-      buyerPoints = parseInt(sessionStorage.getItem("currentBuyerPoints")) || 0;
 
       if (!buyerId) {
         alert("Session expired. Returning to transaction page.");
@@ -130,17 +128,16 @@
         return;
       }
 
+      // 🔹 Load buyer data from Firebase
       db.ref("buyers/" + buyerId).once("value").then(snap => {
         if (snap.exists()) {
           const data = snap.val();
-          buyerPassword = data.password || "";
           buyerPoints = data.points || 0;
+          buyerPassword = data.password || "";
+          document.getElementById("welcomeName").textContent = `Welcome, ${buyerName}!`;
           document.getElementById("userPoints").textContent = buyerPoints;
         }
       });
-
-      document.getElementById("welcomeName").textContent = `Welcome, ${buyerName}!`;
-      document.getElementById("userPoints").textContent = buyerPoints;
     });
 
     function calculateTotalPoints() {
@@ -152,26 +149,25 @@
     }
 
     function showSummary() {
-      totalCost = calculateTotalPoints();
-      if (totalCost <= 0) return alert("Please select at least one item.");
+      const totalCost = calculateTotalPoints();
+      if (totalCost <= 0) return alert("Select at least one item to redeem.");
 
       const items = [];
       const add = (id, name, selId) => {
-        const qty = parseInt(document.getElementById(id).value);
+        const qty = document.getElementById(id).value;
         if (qty > 0) {
           const size = document.getElementById(selId);
           items.push({ name: name, sizeText: size.options[size.selectedIndex].text, qty: qty });
         }
       };
-
-      add("copyarenQty","Copyaren","copyarenSize");
-      add("chocobaraQty","Chocobara","chocobaraSize");
-      add("camericanoQty","Camericano","camericanoSize");
+      add("copyarenQty", "Copyaren", "copyarenSize");
+      add("chocobaraQty", "Chocobara", "chocobaraSize");
+      add("camericanoQty", "Camericano", "camericanoSize");
 
       sessionStorage.setItem("redeemItems", JSON.stringify(items));
+      sessionStorage.setItem("redeemTotal", totalCost);
 
-      const itemListHTML = items.map(i => `<li>${i.name} - ${i.sizeText} × ${i.qty}</li>`).join("");
-      document.getElementById("summaryList").innerHTML = `<ul class='list-disc ml-5'>${itemListHTML}</ul>`;
+      document.getElementById("summaryList").innerHTML = items.map(i => `<li>${i.name} - ${i.sizeText} × ${i.qty}</li>`).join("");
       document.getElementById("summaryTotal").textContent = totalCost;
       document.getElementById("summaryModal").classList.remove("hidden");
     }
@@ -182,10 +178,9 @@
 
     function askConfirmation() {
       document.getElementById("summaryModal").classList.add("hidden");
-      const msg = `You want to redeem items worth ${totalCost} points.\nYour total points = ${buyerPoints}.\nAre you sure you want to proceed?`;
-      if (confirm(msg)) {
-        document.getElementById("passwordModal").classList.remove("hidden");
-      }
+      const totalCost = sessionStorage.getItem("redeemTotal");
+      const msg = `You want to redeem ${totalCost} points.\nYour total points: ${buyerPoints}.\nAre you sure?`;
+      if (confirm(msg)) document.getElementById("passwordModal").classList.remove("hidden");
     }
 
     function cancelPassword() {
@@ -195,14 +190,15 @@
     function confirmRedemption() {
       const staffPass = document.getElementById("staffPassword").value.trim();
       const memberPass = document.getElementById("memberPassword").value.trim();
+      const totalCost = parseInt(sessionStorage.getItem("redeemTotal") || 0);
 
       if (staffPass !== STAFF_MASTER_PASSWORD) return alert("❌ Incorrect staff master password!");
       if (memberPass !== buyerPassword) return alert("❌ Incorrect member password!");
       if (buyerPoints < totalCost) return alert("❌ Not enough points!");
 
       const newPoints = buyerPoints - totalCost;
-      const redeemedItems = JSON.parse(sessionStorage.getItem("redeemItems")) || [];
-      const itemNames = redeemedItems.map(i => `${i.name} - ${i.sizeText} × ${i.qty}`).join(", ");
+      const items = JSON.parse(sessionStorage.getItem("redeemItems")) || [];
+      const itemNames = items.map(i => `${i.name} - ${i.sizeText} × ${i.qty}`).join(", ");
 
       const redemption = {
         buyerId,
@@ -214,26 +210,27 @@
         type: "Redeem"
       };
 
+      // Update database
       db.ref("buyers/" + buyerId).update({ points: newPoints });
       db.ref("redemptions/" + Date.now()).set(redemption);
-
       db.ref("transactions").push({
         buyerId,
         buyerName,
+        totalPointsUsed: totalCost,
         totalAmount: 0,
         totalPointsEarned: 0,
-        totalPointsUsed: totalCost,
         items: itemNames,
         paymentType: "REDEEM",
         staff: sessionStorage.getItem("staffName") || "Unknown",
         dateTime: new Date().toLocaleString("en-GB")
       });
 
+      document.getElementById("userPoints").textContent = newPoints;
       buyerPoints = newPoints;
       sessionStorage.setItem("currentBuyerPoints", newPoints);
-      document.getElementById("userPoints").textContent = newPoints;
+
       document.getElementById("passwordModal").classList.add("hidden");
-      alert("🎉 Redemption successful!");
+      alert(`✅ Redemption successful! Remaining points: ${newPoints}`);
     }
 
     function backToTransaction() {
