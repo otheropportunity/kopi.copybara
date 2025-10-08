@@ -27,7 +27,6 @@
     .hidden { display: none; }
   </style>
 </head>
-
 <body>
   <div class="card">
     <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">🎁 Redeem Points</h1>
@@ -92,7 +91,7 @@
     <div class="bg-white rounded p-6 w-80">
       <h3 class="text-lg font-bold text-amber-800 mb-2 text-center">Confirm Redemption</h3>
       <div id="summaryList" class="text-sm mb-3"></div>
-      <p class="text-center">Total Points: <span id="summaryTotal" class="font-bold text-green-700"></span></p>
+      <p class="text-center">Total Points Used: <span id="summaryTotal" class="font-bold text-green-700"></span></p>
       <div class="flex gap-2 mt-4">
         <button onclick="cancelSummary()" class="flex-1 bg-gray-300 p-2 rounded">Cancel</button>
         <button onclick="askConfirmation()" class="flex-1 bg-green-700 text-white p-2 rounded">Next</button>
@@ -116,7 +115,8 @@
 
   <script>
     const db = firebase.database();
-    let buyerId, buyerName, buyerPoints, buyerPassword, totalCost = 0;
+    let buyerId, buyerName, buyerPoints = 0, buyerPassword = "";
+    let totalCost = 0;
     const STAFF_MASTER_PASSWORD = "230420";
 
     document.addEventListener("DOMContentLoaded", () => {
@@ -153,16 +153,17 @@
 
     function showSummary() {
       totalCost = calculateTotalPoints();
-      if (totalCost <= 0) return alert("Select at least one item.");
+      if (totalCost <= 0) return alert("Please select at least one item.");
 
       const items = [];
       const add = (id, name, selId) => {
-        const qty = document.getElementById(id).value;
+        const qty = parseInt(document.getElementById(id).value);
         if (qty > 0) {
           const size = document.getElementById(selId);
           items.push({ name: name, sizeText: size.options[size.selectedIndex].text, qty: qty });
         }
       };
+
       add("copyarenQty","Copyaren","copyarenSize");
       add("chocobaraQty","Chocobara","chocobaraSize");
       add("camericanoQty","Camericano","camericanoSize");
