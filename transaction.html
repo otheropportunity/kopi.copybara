@@ -3,117 +3,102 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Coffee Loyalty - Transaction</title>
+  <title>Coffee Loyalty - Transaction & History</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <style>
     body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
-    .card {
-      background: white; border-radius: 12px; padding: 24px;
-      max-width: 480px; margin: 60px auto;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    }
-    select, input[type="number"] {
-      border: 1px solid #ccc; border-radius: 6px; padding: 4px;
-    }
+    .card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    .hidden { display: none; }
   </style>
 </head>
 
 <body>
-  <div class="card">
-    <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">☕ Staff Transaction Panel</h1>
-    <h2 class="text-lg font-semibold text-center mb-4">
-      Welcome, <span id="staffNameDisplay" class="text-amber-700"></span>
-    </h2>
+  <div class="max-w-5xl mx-auto mt-10">
+    <div class="card mb-10" id="transactionSection">
+      <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">☕ Staff Transaction Panel</h1>
+      <h2 class="text-lg font-semibold text-center mb-4">Welcome, <span id="staffNameDisplay" class="text-amber-700"></span></h2>
 
-    <!-- Search Buyer -->
-    <input id="searchBuyer" class="w-full border rounded p-2 mb-2" placeholder="Search Buyer (Name / Phone)" />
-    <button onclick="searchBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg mb-4">Search</button>
+      <!-- Search Buyer -->
+      <input id="searchBuyer" class="w-full border rounded p-2 mb-2" placeholder="Search Buyer (Name / Phone)" />
+      <button onclick="searchBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg mb-4">Search</button>
 
-    <!-- Buyer Info -->
-    <div id="buyerInfo" class="hidden border-t pt-3">
-      <p><strong>Name:</strong> <span id="buyerFoundName"></span></p>
-      <p><strong>Points:</strong> <span id="buyerFoundPoints"></span></p>
+      <!-- Buyer Info -->
+      <div id="buyerInfo" class="hidden border-t pt-3">
+        <p><strong>Name:</strong> <span id="buyerFoundName"></span></p>
+        <p><strong>Points:</strong> <span id="buyerFoundPoints"></span></p>
 
-      <h3 class="font-semibold mb-2 text-amber-800 mt-4">Select Items:</h3>
+        <h3 class="font-semibold mb-2 text-amber-800 mt-4">Select Items:</h3>
 
-      <!-- Copyaren -->
-      <div class="mb-2">
-        <div class="flex justify-between mb-1">
-          <label>Copyaren</label>
-          <input type="number" id="copyarenQty" min="0" value="0" class="w-16 text-center">
+        <div id="itemList"></div>
+
+        <!-- Transaction Type -->
+        <div class="mt-3">
+          <label class="font-semibold text-amber-700">Transaction Type:</label>
+          <div class="flex gap-3 mt-1">
+            <button type="button" id="btnQRIS" onclick="setPaymentType('QRIS')" class="flex-1 bg-blue-600 text-white p-2 rounded-lg">QRIS</button>
+            <button type="button" id="btnCash" onclick="setPaymentType('CASH')" class="flex-1 bg-green-600 text-white p-2 rounded-lg">CASH</button>
+          </div>
+          <p class="text-sm mt-1 text-gray-600">Selected: <span id="selectedPayment">None</span></p>
         </div>
-        <select id="copyarenSize" class="w-full">
-          <option value="175">Glass 175ml - Rp 10.000</option>
-          <option value="250">Pocket 250ml - Rp 20.000</option>
-          <option value="500">500ml - Rp 40.000</option>
-          <option value="1000">1L - Rp 80.000</option>
-        </select>
-      </div>
 
-      <!-- Chocobara -->
-      <div class="mb-2">
-        <div class="flex justify-between mb-1">
-          <label>Chocobara</label>
-          <input type="number" id="chocobaraQty" min="0" value="0" class="w-16 text-center">
+        <!-- Cash Section -->
+        <div id="cashInputSection" class="hidden mt-3 bg-amber-50 border border-amber-200 p-3 rounded-lg">
+          <label class="block mb-1 font-semibold">Customer Paid (Rp):</label>
+          <input type="number" id="cashPaid" min="0" class="w-full p-2 border rounded" placeholder="Enter paid amount" />
+          <p class="text-sm text-gray-600 mt-1">Change: Rp <span id="changeAmount">0</span></p>
         </div>
-        <select id="chocobaraSize" class="w-full">
-          <option value="175">Glass 175ml - Rp 12.000</option>
-          <option value="250">Pocket 250ml - Rp 24.000</option>
-          <option value="500">500ml - Rp 48.000</option>
-          <option value="1000">1L - Rp 95.000</option>
-        </select>
-      </div>
 
-      <!-- Camericano -->
-      <div class="mb-2">
-        <div class="flex justify-between mb-1">
-          <label>Camericano</label>
-          <input type="number" id="camericanoQty" min="0" value="0" class="w-16 text-center">
+        <!-- Summary -->
+        <div class="mt-4 bg-amber-50 p-3 rounded-lg border border-amber-200">
+          <p><strong>Total Amount:</strong> Rp <span id="totalAmount">0</span></p>
+          <p><strong>Points Earned:</strong> <span id="totalPoints">0</span></p>
         </div>
-        <select id="camericanoSize" class="w-full">
-          <option value="175">Glass 175ml - Rp 8.000</option>
-          <option value="250">Pocket 250ml - Rp 15.000</option>
-          <option value="500">500ml - Rp 30.000</option>
-          <option value="1000">1L - Rp 60.000</option>
-        </select>
+
+        <button onclick="calculateTotal()" class="w-full bg-yellow-600 text-white p-2 rounded-lg mt-3">🧮 Calculate Total</button>
+        <button onclick="submitTransaction()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-3">Submit Transaction</button>
+        <button onclick="goToRedeem()" class="w-full bg-blue-700 text-white p-2 rounded-lg mt-3">Redeem Points</button>
       </div>
 
-      <!-- Transaction Type -->
-      <div class="mt-3">
-        <label class="font-semibold text-amber-700">Transaction Type:</label>
-        <div class="flex gap-3 mt-1">
-          <button type="button" id="btnQRIS" onclick="setPaymentType('QRIS')" class="flex-1 bg-blue-600 text-white p-2 rounded-lg">QRIS</button>
-          <button type="button" id="btnCash" onclick="setPaymentType('CASH')" class="flex-1 bg-green-600 text-white p-2 rounded-lg">CASH</button>
-        </div>
-        <p class="text-sm mt-1 text-gray-600">Selected: <span id="selectedPayment">None</span></p>
-      </div>
-
-      <!-- Cash Payment Input -->
-      <div id="cashInputSection" class="hidden mt-3 bg-amber-50 border border-amber-200 p-3 rounded-lg">
-        <label class="block mb-1 font-semibold">Customer Paid (Rp):</label>
-        <input type="number" id="cashPaid" min="0" class="w-full p-2 border rounded" placeholder="Enter paid amount" />
-        <p class="text-sm text-gray-600 mt-1">Change: Rp <span id="changeAmount">0</span></p>
-      </div>
-
-      <!-- Summary -->
-      <div class="mt-4 bg-amber-50 p-3 rounded-lg border border-amber-200">
-        <p><strong>Total Amount:</strong> Rp <span id="totalAmount">0</span></p>
-        <p><strong>Points Earned:</strong> <span id="totalPoints">0</span></p>
-      </div>
-
-      <button onclick="calculateTotal()" class="w-full bg-yellow-600 text-white p-2 rounded-lg mt-3">🧮 Calculate Total</button>
-      <button onclick="submitTransaction()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-3">Submit Transaction</button>
-      <button onclick="goToRedeem()" class="w-full bg-blue-700 text-white p-2 rounded-lg mt-3">Redeem Points</button>
+      <button onclick="toggleHistory()" class="w-full bg-yellow-600 text-white p-2 rounded-lg mt-4">View Transaction History</button>
+      <button onclick="logoutStaff()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg mt-6">Logout</button>
     </div>
 
-    <button onclick="window.location.href='history.html'" class="w-full bg-yellow-600 text-white p-2 rounded-lg mt-4">View Transaction History</button>
-    <button onclick="logoutStaff()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg mt-6">Logout</button>
+    <!-- === HISTORY SECTION === -->
+    <div class="card hidden" id="historySection">
+      <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">☕ Transaction & Redemption History</h1>
+      <div class="flex justify-between mb-4">
+        <button onclick="toggleHistory()" class="bg-amber-700 text-white p-2 px-4 rounded-lg">⬅ Back</button>
+        <button onclick="downloadExcel()" class="bg-green-600 text-white p-2 px-4 rounded-lg">⬇️ Download Excel</button>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="min-w-full bg-white rounded-lg text-sm">
+          <thead class="bg-amber-700 text-white">
+            <tr>
+              <th>Date/Time</th>
+              <th>Buyer Name</th>
+              <th>Items</th>
+              <th>Total (Rp)</th>
+              <th>Payment</th>
+              <th>Paid (Rp)</th>
+              <th>Change (Rp)</th>
+              <th>Points</th>
+              <th>Redeem</th>
+              <th>Staff</th>
+            </tr>
+          </thead>
+          <tbody id="historyTable"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <script>
+    // === Firebase Setup ===
     const firebaseConfig = {
       apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
       authDomain: "kopi-copybara.firebaseapp.com",
@@ -126,10 +111,12 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
+    // === Globals ===
     let currentBuyerId = null;
     let currentBuyerName = "";
     let currentBuyerPoints = 0;
     let paymentType = null;
+    let historyRows = [];
 
     const prices = {
       copyaren: {175: 10000, 250: 20000, 500: 40000, 1000: 80000},
@@ -140,7 +127,7 @@
     document.addEventListener("DOMContentLoaded", () => {
       const staffName = sessionStorage.getItem("staffName");
       if (!staffName) {
-        alert("Session expired or not logged in. Please login as staff.");
+        alert("Please login again.");
         window.location.href = "index.html";
         return;
       }
@@ -156,20 +143,18 @@
     function searchBuyer() {
       const query = document.getElementById("searchBuyer").value.trim().toLowerCase();
       if (!query) return alert("Enter buyer name or phone!");
-      db.ref("buyers").once("value", snapshot => {
+      db.ref("buyers").once("value", snap => {
         let found = false;
-        snapshot.forEach(child => {
-          const data = child.val();
-          if ((data.name && data.name.toLowerCase().includes(query)) || (data.phone && data.phone.includes(query))) {
+        snap.forEach(c => {
+          const d = c.val();
+          if ((d.name && d.name.toLowerCase().includes(query)) || (d.phone && d.phone.includes(query))) {
             found = true;
-            currentBuyerId = child.key;
-            currentBuyerName = data.name;
-            currentBuyerPoints = data.points || 0;
-            document.getElementById("buyerFoundName").innerText = data.name;
+            currentBuyerId = c.key;
+            currentBuyerName = d.name;
+            currentBuyerPoints = d.points || 0;
+            document.getElementById("buyerFoundName").innerText = d.name;
             document.getElementById("buyerFoundPoints").innerText = currentBuyerPoints;
             document.getElementById("buyerInfo").classList.remove("hidden");
-
-            // Store for redeem.html
             sessionStorage.setItem("currentBuyerId", currentBuyerId);
             sessionStorage.setItem("currentBuyerName", currentBuyerName);
             sessionStorage.setItem("currentBuyerPoints", currentBuyerPoints);
@@ -180,12 +165,12 @@
     }
 
     function calculateTotal() {
-      const cQ = parseInt(document.getElementById("copyarenQty").value) || 0;
-      const cS = document.getElementById("copyarenSize").value;
-      const bQ = parseInt(document.getElementById("chocobaraQty").value) || 0;
-      const bS = document.getElementById("chocobaraSize").value;
-      const aQ = parseInt(document.getElementById("camericanoQty").value) || 0;
-      const aS = document.getElementById("camericanoSize").value;
+      const cQ = +document.getElementById("copyarenQty")?.value || 0;
+      const cS = document.getElementById("copyarenSize")?.value || 175;
+      const bQ = +document.getElementById("chocobaraQty")?.value || 0;
+      const bS = document.getElementById("chocobaraSize")?.value || 175;
+      const aQ = +document.getElementById("camericanoQty")?.value || 0;
+      const aS = document.getElementById("camericanoSize")?.value || 175;
 
       const totalAmount = cQ * prices.copyaren[cS] + bQ * prices.chocobara[bS] + aQ * prices.camericano[aS];
       const totalPoints = cQ + bQ + aQ;
@@ -200,67 +185,144 @@
       return { totalAmount, totalPoints };
     }
 
-function submitTransaction() {
-  if (!currentBuyerId) return alert("Search for a buyer first!");
-  if (!paymentType) return alert("Select payment type!");
-  const { totalAmount, totalPoints } = calculateTotal();
-  if (totalAmount === 0) return alert("Please select items!");
+    function submitTransaction() {
+      if (!currentBuyerId) return alert("Search for a buyer first!");
+      if (!paymentType) return alert("Select payment type!");
+      const { totalAmount, totalPoints } = calculateTotal();
+      if (totalAmount === 0) return alert("Please select items!");
 
-  const confirmPurchase = confirm(
-    `Confirm transaction?\nTotal: Rp ${totalAmount.toLocaleString()}\nPayment: ${paymentType}`
-  );
-  if (!confirmPurchase) return;
+      const confirmPurchase = confirm(`Confirm transaction?\nTotal: Rp ${totalAmount.toLocaleString()}\nPoints Earned: ${totalPoints}`);
+      if (!confirmPurchase) return;
 
-  const paidAmount = paymentType === "CASH"
-    ? parseInt(document.getElementById("cashPaid").value) || 0
-    : totalAmount;
-  const changeAmount =
-    paymentType === "CASH" ? Math.max(0, paidAmount - totalAmount) : 0;
+      const paidAmount = paymentType === "CASH" ? parseInt(document.getElementById("cashPaid").value) || 0 : totalAmount;
+      const changeAmount = paymentType === "CASH" ? Math.max(0, paidAmount - totalAmount) : 0;
 
-  const newPoints = currentBuyerPoints + totalPoints;
-  const staffName = sessionStorage.getItem("staffName") || "Unknown";
-  const now = new Date().toLocaleString("en-GB");
+      const newPoints = currentBuyerPoints + totalPoints;
+      const staffName = sessionStorage.getItem("staffName") || "Unknown";
+      const now = new Date().toLocaleString("en-GB");
 
-  db.ref("buyers/" + currentBuyerId).update({ points: newPoints });
+      db.ref("buyers/" + currentBuyerId).update({ points: newPoints });
 
-  db.ref("transactions").push({
-    buyerId: currentBuyerId,
-    buyerName: currentBuyerName,
-    totalAmount,
-    totalPointsEarned: totalPoints,
-    paymentType,
-    paidAmount,
-    changeAmount,
-    staff: staffName,
-    dateTime: now
-  });
+      db.ref("transactions").push({
+        buyerId: currentBuyerId,
+        buyerName: currentBuyerName,
+        totalAmount,
+        totalPointsEarned: totalPoints,
+        paymentType,
+        paidAmount,
+        changeAmount,
+        staff: staffName,
+        dateTime: now
+      });
 
-  sessionStorage.setItem("currentBuyerPoints", newPoints);
+      sessionStorage.setItem("currentBuyerPoints", newPoints);
+      alert(`✅ Transaction Saved!\nPoints Earned: ${totalPoints}`);
+      newTransaction();
+    }
 
-  alert(
-    `✅ Transaction Recorded\nTotal: Rp ${totalAmount.toLocaleString()}\nPoints Earned: ${totalPoints}\nChange: Rp ${changeAmount.toLocaleString()}`
-  );
-  newTransaction();
-}
-
-    
     function newTransaction() {
       document.getElementById("buyerInfo").classList.add("hidden");
       document.getElementById("searchBuyer").value = "";
-      ["copyarenQty","chocobaraQty","camericanoQty"].forEach(id => document.getElementById(id).value = 0);
-      ["copyarenSize","chocobaraSize","camericanoSize"].forEach(id => document.getElementById(id).selectedIndex = 0);
       document.getElementById("totalAmount").textContent = "0";
       document.getElementById("totalPoints").textContent = "0";
       document.getElementById("selectedPayment").textContent = "None";
       document.getElementById("cashInputSection").classList.add("hidden");
-      document.getElementById("cashPaid").value = "";
-      document.getElementById("changeAmount").textContent = "0";
       paymentType = null;
     }
 
     function goToRedeem() {
-      if (!currentBuyerId) return alert("Search a buyer first!");
+      if (!currentBuyerId) return alert("Search buyer first!");
+      const totalPoint = sessionStorage.getItem("currentBuyerPoints") || 0;
+      alert(`You have ${totalPoint} points available for redemption!`);
       window.location.href = "redeem.html";
+    }
+
+    // === HISTORY FUNCTIONS ===
+    async function loadHistory() {
+      const table = document.getElementById("historyTable");
+      table.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-gray-500">Loading...</td></tr>`;
+
+      const [tSnap, rSnap] = await Promise.all([
+        db.ref("transactions").once("value"),
+        db.ref("redemptions").once("value")
+      ]);
+
+      historyRows = [];
+
+      tSnap.forEach(c => {
+        const t = c.val();
+        if (!t) return;
+        historyRows.push({
+          dateTime: t.dateTime || "-",
+          buyerName: t.buyerName,
+          items: "Purchase",
+          total: t.totalAmount || 0,
+          payment: t.paymentType || "-",
+          paid: t.paidAmount || 0,
+          change: t.changeAmount || 0,
+          points: t.totalPointsEarned || 0,
+          redeem: "-",
+          staff: t.staff || "-"
+        });
+      });
+
+      rSnap.forEach(c => {
+        const r = c.val();
+        if (!r) return;
+        historyRows.push({
+          dateTime: r.dateTime || "-",
+          buyerName: r.buyerName || "-",
+          items: r.itemName || "-",
+          total: "-",
+          payment: "-",
+          paid: "-",
+          change: "-",
+          points: "-",
+          redeem: r.pointsUsed || r.points || 0,
+          staff: r.staff || "-"
+        });
+      });
+
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const table = document.getElementById("historyTable");
+      if (!historyRows.length) {
+        table.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-gray-500">No data available.</td></tr>`;
+        return;
+      }
+      table.innerHTML = historyRows
+        .sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime))
+        .map(r => `
+          <tr class="hover:bg-amber-50">
+            <td>${r.dateTime}</td>
+            <td>${r.buyerName}</td>
+            <td>${r.items}</td>
+            <td>${r.total === "-" ? "-" : "Rp " + Number(r.total).toLocaleString()}</td>
+            <td>${r.payment}</td>
+            <td>${r.paid === "-" ? "-" : "Rp " + Number(r.paid).toLocaleString()}</td>
+            <td>${r.change === "-" ? "-" : "Rp " + Number(r.change).toLocaleString()}</td>
+            <td>${r.points}</td>
+            <td>${r.redeem !== "-" ? r.redeem + " pts" : "-"}</td>
+            <td>${r.staff}</td>
+          </tr>`).join("");
+    }
+
+    function downloadExcel() {
+      if (!historyRows.length) return alert("No data to export!");
+      const ws = XLSX.utils.json_to_sheet(historyRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "History");
+      XLSX.writeFile(wb, "Coffee_History.xlsx");
+    }
+
+    function toggleHistory() {
+      const t = document.getElementById("transactionSection");
+      const h = document.getElementById("historySection");
+      t.classList.toggle("hidden");
+      h.classList.toggle("hidden");
+      if (!h.classList.contains("hidden")) loadHistory();
     }
 
     function logoutStaff() {
