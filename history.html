@@ -7,6 +7,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+  <!-- ✅ Add Excel export library -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <style>
     body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
@@ -22,14 +24,21 @@
       ☕ Transaction & Redemption History
     </h1>
 
-    <div class="flex justify-between items-center mb-4">
+    <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
       <button onclick="window.location.href='transaction.html'" class="bg-amber-700 text-white p-2 px-4 rounded-lg hover:bg-amber-800 transition">
         ⬅ Back
       </button>
-      <div class="flex items-center gap-2">
+
+      <div class="flex items-center gap-2 flex-wrap">
         <button id="sortButton" class="bg-amber-600 text-white p-2 px-4 rounded-lg hover:bg-amber-700 transition">
           🔤 Sort by Name
         </button>
+
+        <!-- ✅ Download button -->
+        <button id="downloadExcel" class="bg-green-600 text-white p-2 px-4 rounded-lg hover:bg-green-700 transition">
+          ⬇️ Download Excel
+        </button>
+
         <span id="staffNameDisplay" class="font-semibold text-amber-700"></span>
       </div>
     </div>
@@ -84,6 +93,9 @@
         renderHistory();
         document.getElementById("sortButton").textContent = sortByName ? "📅 Sort by Date" : "🔤 Sort by Name";
       });
+
+      // ✅ Download Excel
+      document.getElementById("downloadExcel").addEventListener("click", downloadExcel);
     });
 
     async function loadHistory() {
@@ -116,7 +128,7 @@
         });
       });
 
-      // 🟤 Redemptions (with cost field fix ✅)
+      // 🟤 Redemptions
       redemptionsSnap.forEach(child => {
         const r = child.val();
         if (!r) return;
@@ -129,20 +141,17 @@
           "Unknown";
 
         const itemName = r.itemName || r.item || r.reward || "-";
-
-        // ✅ Fix: cost is the redeemed points
         const redeemPoints =
           r.pointsUsed ||
           r.points ||
           r.redeemPoints ||
           r.redeemedPoints ||
-          r.cost || // <- your actual redemption field
+          r.cost ||
           0;
 
         const date = r.dateTime || r.timestamp || "-";
         const staff = r.staff || "-";
 
-        // Skip empty records
         if (buyer === "Unknown" && itemName === "-" && redeemPoints === 0) return;
 
         historyRows.push({
@@ -162,7 +171,6 @@
       const historyTable = document.getElementById("historyTable");
 
       if (sortByName) {
-        // Sort by buyer name (A–Z)
         historyRows.sort((a, b) => {
           const nameA = (a.buyerName || "").toLowerCase();
           const nameB = (b.buyerName || "").toLowerCase();
@@ -171,7 +179,6 @@
           return new Date(b.dateTime) - new Date(a.dateTime);
         });
       } else {
-        // Sort by latest date
         historyRows.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
       }
 
@@ -190,6 +197,35 @@
           <td>${r.staff}</td>
         </tr>
       `).join("");
+    }
+
+    // ✅ Excel Export Function
+    function downloadExcel() {
+      if (historyRows.length === 0) {
+        alert("No data to export!");
+        return;
+      }
+
+      const wsData = [
+        ["Date/Time", "Buyer Name", "Items / Reward", "Points Earned", "Redeemed (pts)", "Staff"],
+        ...historyRows.map(r => [
+          r.dateTime,
+          r.buyerName,
+          r.items,
+          r.points === "-" ? "" : r.points,
+          r.redeem === "-" ? "" : r.redeem,
+          r.staff
+        ])
+      ];
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      XLSX.utils.book_append_sheet(wb, ws, "History");
+
+      const now = new Date();
+      const fileName = `Coffee_History_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}.xlsx`;
+
+      XLSX.writeFile(wb, fileName);
     }
   </script>
 </body>
