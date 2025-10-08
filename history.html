@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Coffee Loyalty - Transaction History</title>
+  <title>Coffee Loyalty - Transaction & Redemption History</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
@@ -17,10 +17,14 @@
 
 <body>
   <div class="card">
-    <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">☕ Transaction & Redemption History</h1>
+    <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">
+      ☕ Transaction & Redemption History
+    </h1>
 
     <div class="flex justify-between items-center mb-4">
-      <button onclick="window.location.href='transaction.html'" class="bg-amber-700 text-white p-2 px-4 rounded-lg">⬅ Back</button>
+      <button onclick="window.location.href='transaction.html'" class="bg-amber-700 text-white p-2 px-4 rounded-lg hover:bg-amber-800 transition">
+        ⬅ Back
+      </button>
       <span id="staffNameDisplay" class="font-semibold text-amber-700"></span>
     </div>
 
@@ -32,7 +36,7 @@
             <th>Buyer Name</th>
             <th>Items</th>
             <th>Points Earned</th>
-            <th>Redeem</th>
+            <th>Redeemed (pts)</th>
             <th>Staff</th>
           </tr>
         </thead>
@@ -42,7 +46,7 @@
   </div>
 
   <script>
-    // Firebase config
+    // === Firebase config ===
     const firebaseConfig = {
       apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
       authDomain: "kopi-copybara.firebaseapp.com",
@@ -71,8 +75,10 @@
       const historyTable = document.getElementById("historyTable");
       historyTable.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-gray-500">Loading...</td></tr>`;
 
-      const transactionsSnap = await db.ref("transactions").once("value");
-      const redemptionsSnap = await db.ref("redemptions").once("value");
+      const [transactionsSnap, redemptionsSnap] = await Promise.all([
+        db.ref("transactions").once("value"),
+        db.ref("redemptions").once("value")
+      ]);
 
       const historyRows = [];
 
@@ -82,7 +88,7 @@
         const itemList = Object.entries(t.items || {})
           .filter(([_, q]) => q > 0)
           .map(([name, q]) => `${name} (${q})`)
-          .join(", ");
+          .join(", ") || "-";
 
         historyRows.push({
           dateTime: t.dateTime,
@@ -94,7 +100,7 @@
         });
       });
 
-      // 🟤 Add all redemptions
+      // 🟤 Add all redemptions (with redemption cost)
       redemptionsSnap.forEach(child => {
         const r = child.val();
         historyRows.push({
@@ -102,12 +108,12 @@
           buyerName: r.buyerName,
           items: r.itemName || r.item || "-",
           points: "-",
-          redeem: `${r.pointsUsed || 0} pts`,
+          redeem: r.pointsUsed ? `${r.pointsUsed}` : "-",
           staff: r.staff || "-"
         });
       });
 
-      // Sort by date (descending)
+      // Sort by date descending
       historyRows.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
 
       // Render rows
