@@ -100,7 +100,7 @@
       // 🟤 Transactions
       transactionsSnap.forEach(child => {
         const t = child.val();
-        if (!t.buyerName) return;
+        if (!t || !t.buyerName) return;
         const itemList = Object.entries(t.items || {})
           .filter(([_, q]) => q > 0)
           .map(([name, q]) => `${name} (${q})`)
@@ -116,17 +116,27 @@
         });
       });
 
-      // 🟤 Redemptions
+      // 🟤 Redemptions — detect possible field variations
       redemptionsSnap.forEach(child => {
         const r = child.val();
-        if (!r.buyerName) return;
+        if (!r) return;
+
+        const buyer = r.buyerName || r.name || r.memberName || "Unknown";
+        const itemName = r.itemName || r.item || r.reward || "-";
+        const redeemPoints = r.pointsUsed || r.points || r.redeemPoints || r.redeemedPoints || 0;
+        const date = r.dateTime || r.timestamp || "-";
+        const staff = r.staff || "-";
+
+        // Skip if no actual redemption info
+        if (buyer === "Unknown" && itemName === "-" && redeemPoints === 0) return;
+
         historyRows.push({
-          dateTime: r.dateTime || "-",
-          buyerName: r.buyerName,
-          items: `🎁 Redeemed: ${r.itemName || r.item || "-"}`,
+          dateTime: date,
+          buyerName: buyer,
+          items: `🎁 Redeemed: ${itemName}`,
           points: "-",
-          redeem: r.pointsUsed || 0,
-          staff: r.staff || "-"
+          redeem: redeemPoints,
+          staff: staff
         });
       });
 
@@ -137,16 +147,16 @@
       const historyTable = document.getElementById("historyTable");
 
       if (sortByName) {
-        // Sort by buyerName (A-Z), then by date (latest first)
+        // Sort by buyer name then date
         historyRows.sort((a, b) => {
-          const nameA = a.buyerName.toLowerCase();
-          const nameB = b.buyerName.toLowerCase();
+          const nameA = (a.buyerName || "").toLowerCase();
+          const nameB = (b.buyerName || "").toLowerCase();
           if (nameA < nameB) return -1;
           if (nameA > nameB) return 1;
           return new Date(b.dateTime) - new Date(a.dateTime);
         });
       } else {
-        // Sort by date (latest first)
+        // Sort by latest date first
         historyRows.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
       }
 
