@@ -54,6 +54,7 @@
             <th>Change (Rp)</th>
             <th>Points Earned</th>
             <th>Redeemed (pts)</th>
+            <th>Remaining Points</th>
             <th>Staff</th>
           </tr>
         </thead>
@@ -101,7 +102,7 @@
 
     async function loadHistory() {
       const table = document.getElementById("historyTable");
-      table.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-gray-500">Loading...</td></tr>`;
+      table.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">Loading...</td></tr>`;
 
       const [transactionsSnap, redemptionsSnap] = await Promise.all([
         db.ref("transactions").once("value"),
@@ -115,7 +116,6 @@
         const t = child.val();
         if (!t || !t.buyerName) return;
 
-        // show item details if available (copyaren, chocobara, camericano)
         const itemDetails = [
           t.copyarenQty > 0 ? `Copyaren ${t.copyarenSize || ""}ml (${t.copyarenQty})` : "",
           t.chocobaraQty > 0 ? `Chocobara ${t.chocobaraSize || ""}ml (${t.chocobaraQty})` : "",
@@ -132,6 +132,7 @@
           changeAmount: t.changeAmount || 0,
           points: t.totalPointsEarned || 0,
           redeem: "-",
+          remainingPoints: "-",
           staff: t.staff || "-"
         });
       });
@@ -157,11 +158,31 @@
           changeAmount: "-",
           points: "-",
           redeem: redeemPoints,
+          remainingPoints: "-",
           staff: staff
         });
       });
 
-      renderHistory();
+      // 🔹 Fetch remaining points for all unique buyers
+      const memberNames = [...new Set(historyRows.map(r => r.buyerName).filter(Boolean))];
+      const memberPromises = memberNames.map(name =>
+        db.ref("members/" + name).once("value").then(snap => ({
+          name,
+          remainingPoints: snap.val()?.points || 0
+        }))
+      );
+
+      Promise.all(memberPromises).then(memberData => {
+        const memberMap = {};
+        memberData.forEach(m => (memberMap[m.name] = m.remainingPoints));
+
+        historyRows = historyRows.map(row => ({
+          ...row,
+          remainingPoints: memberMap[row.buyerName] ?? "-"
+        }));
+
+        renderHistory();
+      });
     }
 
     function renderHistory() {
@@ -174,7 +195,7 @@
       }
 
       if (historyRows.length === 0) {
-        table.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-gray-500">No data found.</td></tr>`;
+        table.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">No data found.</td></tr>`;
         return;
       }
 
@@ -189,6 +210,7 @@
           <td>${r.changeAmount !== "-" ? "Rp " + Number(r.changeAmount).toLocaleString() : "-"}</td>
           <td>${r.points}</td>
           <td>${r.redeem !== "-" ? r.redeem + " pts" : "-"}</td>
+          <td>${r.remainingPoints !== undefined ? r.remainingPoints : "-"}</td>
           <td>${r.staff}</td>
         </tr>
       `).join("");
@@ -202,7 +224,7 @@
       }
 
       const wsData = [
-        ["Date/Time", "Buyer Name", "Items", "Total (Rp)", "Payment", "Paid (Rp)", "Change (Rp)", "Points Earned", "Redeemed (pts)", "Staff"],
+        ["Date/Time", "Buyer Name", "Items", "Total (Rp)", "Payment", "Paid (Rp)", "Change (Rp)", "Points Earned", "Redeemed (pts)", "Remaining Points", "Staff"],
         ...historyRows.map(r => [
           r.dateTime,
           r.buyerName,
@@ -213,6 +235,7 @@
           r.changeAmount === "-" ? "" : r.changeAmount,
           r.points === "-" ? "" : r.points,
           r.redeem === "-" ? "" : r.redeem,
+          r.remainingPoints === "-" ? "" : r.remainingPoints,
           r.staff
         ])
       ];
