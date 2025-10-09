@@ -186,6 +186,24 @@ function calculateTotal(){
   return { totalAmount,totalPoints };
 }
 
+  // ⬇️ ADD THIS BLOCK after member is found successfully
+  function handleMemberFound(buyerName, buyerPassword, buyerPoints) {
+    // Your existing logic showing member info...
+
+    // ✅ Store member temporarily for redeem.html
+    sessionStorage.setItem("currentMember", JSON.stringify({
+      name: buyerName,
+      password: buyerPassword,
+      points: buyerPoints
+    }));
+
+    console.log("Member data stored for redemption:", buyerName);
+  }
+
+  // Example: integrate with your existing member search success
+  // wherever you confirm a member found, call:
+  // handleMemberFound(foundName, foundPassword, foundPoints);
+  
 // === Submit Transaction with redemption lock check ===
 function submitTransaction(){
   if(!currentBuyerId) return alert("Search for a buyer first!");
