@@ -243,27 +243,36 @@ function submitTransaction(){
 
 // ✅ Save buyer info and points before going to redeem.html
 function goToRedeem() {
-  const buyerName = document.getElementById("buyerName")?.value.trim();
-  const buyerPass = document.getElementById("buyerPassword")?.value.trim();
-  const buyerPoints = parseInt(document.getElementById("buyerPoints")?.innerText || "0");
+  const buyerName = document.getElementById("buyerFoundName")?.innerText.trim();
+  const buyerPoints = parseInt(document.getElementById("buyerFoundPoints")?.innerText || "0");
 
   if (!buyerName) {
-    alert("⚠️ Please select or input a buyer first!");
+    alert("⚠️ Please search and select a buyer first!");
     return;
   }
 
-  // Save all member info for redeem.html
-  const memberData = {
-    name: buyerName,
-    password: buyerPass,
-    points: buyerPoints
-  };
-  sessionStorage.setItem("currentMember", JSON.stringify(memberData));
+  // Fetch buyer password from Firebase (if stored)
+  db.ref("buyers").once("value").then(snapshot => {
+    let buyerPassword = "";
+    snapshot.forEach(child => {
+      const data = child.val();
+      if (data.name === buyerName) buyerPassword = data.password || "";
+    });
 
-  // Redirect to redeem page
-  window.location.href = "redeem.html";
+    // ✅ Save all member info for redeem.html
+    const memberData = {
+      name: buyerName,
+      password: buyerPassword,
+      points: buyerPoints
+    };
+    sessionStorage.setItem("currentMember", JSON.stringify(memberData));
+
+    // ✅ Go to redeem page
+    window.location.href = "redeem.html";
+  });
 }
 
+  
   
 function logoutStaff(){ sessionStorage.clear(); window.location.href="index.html"; }
 </script>
