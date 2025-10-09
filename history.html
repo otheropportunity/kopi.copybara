@@ -110,58 +110,71 @@
 
       historyRows = [];
 
-      // Transactions
+      // 🟤 Transactions
       transactionsSnap.forEach(child => {
         const t = child.val();
         if (!t || !t.buyerName) return;
 
-        const itemDetails = t.items || "-";
+        const items = t.items || "-";
 
         historyRows.push({
           dateTime: t.dateTime || "-",
           buyerName: t.buyerName,
-          items: itemDetails,
+          items: items,
           totalAmount: t.totalAmount || 0,
           paymentType: t.paymentType || "-",
           paidAmount: t.paidAmount || 0,
           changeAmount: t.changeAmount || 0,
-          pointsEarned: t.totalPointsEarned || 0,
-          redeem: 0,
+          points: t.totalPointsEarned || 0,
+          redeem: "-",
           staff: t.staff || "-"
         });
       });
 
-      // Redemptions
+      // 🟤 Redemptions
       redemptionsSnap.forEach(child => {
         const r = child.val();
-        if (!r) return;
+        if (!r || !r.buyerName) return;
+
+        const buyer = r.buyerName || r.name || "Unknown";
+        const items = r.items || r.reward || "-";
+        const redeemPoints = r.totalPointsUsed || r.pointsUsed || r.points || 0;
+        const date = r.dateTime || r.timestamp || "-";
+        const staff = r.staff || "-";
 
         historyRows.push({
-          dateTime: r.dateTime || "-",
-          buyerName: r.buyerName || r.name || "Unknown",
-          items: r.itemName || "-",
+          dateTime: date,
+          buyerName: buyer,
+          items: items,
           totalAmount: "-",
-          paymentType: "-",
+          paymentType: "REDEEM",
           paidAmount: "-",
           changeAmount: "-",
-          pointsEarned: 0,
-          redeem: r.totalPointsUsed || r.pointsUsed || 0,
-          staff: r.staff || "-"
+          points: "-",
+          redeem: redeemPoints,
+          staff: staff
         });
       });
 
-      // Sort by date
+      // 🔹 Sort by date
       historyRows.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
 
-      // Compute running remaining points per buyer
+      // 🔹 Calculate remaining points sequentially per buyer
       const buyerPointsMap = {};
       historyRows = historyRows.map(row => {
         if (!buyerPointsMap[row.buyerName]) buyerPointsMap[row.buyerName] = 0;
 
-        buyerPointsMap[row.buyerName] += (row.pointsEarned || 0) - (row.redeem || 0);
-        row.remainingPoints = buyerPointsMap[row.buyerName];
+        if (row.points !== "-" && typeof row.points === "number") {
+          buyerPointsMap[row.buyerName] += row.points;
+        }
+        if (row.redeem !== "-" && typeof row.redeem === "number") {
+          buyerPointsMap[row.buyerName] -= row.redeem;
+        }
 
-        return row;
+        return {
+          ...row,
+          remainingPoints: buyerPointsMap[row.buyerName]
+        };
       });
 
       renderHistory();
@@ -169,20 +182,19 @@
 
     function renderHistory() {
       const table = document.getElementById("historyTable");
-      let rowsToRender = [...historyRows];
 
       if (sortByName) {
-        rowsToRender.sort((a, b) => (a.buyerName || "").localeCompare(b.buyerName || ""));
+        historyRows.sort((a, b) => (a.buyerName || "").localeCompare(b.buyerName || ""));
       } else {
-        rowsToRender.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
+        historyRows.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
       }
 
-      if (rowsToRender.length === 0) {
+      if (historyRows.length === 0) {
         table.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">No data found.</td></tr>`;
         return;
       }
 
-      table.innerHTML = rowsToRender.map(r => `
+      table.innerHTML = historyRows.map(r => `
         <tr class="hover:bg-amber-50">
           <td>${r.dateTime}</td>
           <td>${r.buyerName}</td>
@@ -191,14 +203,15 @@
           <td>${r.paymentType}</td>
           <td>${r.paidAmount !== "-" ? "Rp " + Number(r.paidAmount).toLocaleString() : "-"}</td>
           <td>${r.changeAmount !== "-" ? "Rp " + Number(r.changeAmount).toLocaleString() : "-"}</td>
-          <td>${r.pointsEarned || "-"}</td>
-          <td>${r.redeem ? r.redeem + " pts" : "-"}</td>
-          <td>${r.remainingPoints}</td>
+          <td>${r.points}</td>
+          <td>${r.redeem !== "-" ? r.redeem + " pts" : "-"}</td>
+          <td>${r.remainingPoints !== undefined ? r.remainingPoints : "-"}</td>
           <td>${r.staff}</td>
         </tr>
       `).join("");
     }
 
+    // ✅ Excel Export
     function downloadExcel() {
       if (historyRows.length === 0) {
         alert("No data to export!");
@@ -206,7 +219,7 @@
       }
 
       const wsData = [
-        ["Date/Time","Buyer Name","Items","Total (Rp)","Payment","Paid (Rp)","Change (Rp)","Points Earned","Redeemed (pts)","Remaining Points","Staff"],
+        ["Date/Time", "Buyer Name", "Items", "Total (Rp)", "Payment", "Paid (Rp)", "Change (Rp)", "Points Earned", "Redeemed (pts)", "Remaining Points", "Staff"],
         ...historyRows.map(r => [
           r.dateTime,
           r.buyerName,
@@ -215,9 +228,9 @@
           r.paymentType,
           r.paidAmount === "-" ? "" : r.paidAmount,
           r.changeAmount === "-" ? "" : r.changeAmount,
-          r.pointsEarned === 0 ? "" : r.pointsEarned,
-          r.redeem === 0 ? "" : r.redeem,
-          r.remainingPoints,
+          r.points === "-" ? "" : r.points,
+          r.redeem === "-" ? "" : r.redeem,
+          r.remainingPoints === "-" ? "" : r.remainingPoints,
           r.staff
         ])
       ];
