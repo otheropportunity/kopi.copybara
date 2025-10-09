@@ -210,94 +210,53 @@
       return { totalAmount, totalPoints };
     }
 
-function submitTransaction() {
-  if (!currentBuyerId) return alert("Search for a buyer first!");
-  if (!paymentType) return alert("Select payment type!");
-  const { totalAmount, totalPoints } = calculateTotal();
-  
-  // If no items and no points, stop
-  if (totalAmount === 0 && totalPoints === 0) return alert("Please select items!");
-  
-  const confirmPurchase = confirm(`Confirm transaction?\nTotal: Rp ${totalAmount.toLocaleString()}\nPayment: ${paymentType}`);
-  if (!confirmPurchase) return;
+    function submitTransaction() {
+      if (!currentBuyerId) return alert("Search for a buyer first!");
+      if (!paymentType) return alert("Select payment type!");
+      const { totalAmount, totalPoints } = calculateTotal();
+      if (totalAmount === 0) return alert("Please select items!");
+      const confirmPurchase = confirm(`Confirm transaction?\nTotal: Rp ${totalAmount.toLocaleString()}\nPayment: ${paymentType}`);
+      if (!confirmPurchase) return;
 
-  const paidAmount = paymentType === "CASH" ? parseInt(document.getElementById("cashPaid").value) || 0 : totalAmount;
-  const changeAmount = paymentType === "CASH" ? Math.max(0, paidAmount - totalAmount) : 0;
-  const staffName = sessionStorage.getItem("staffName") || "Unknown";
-  const now = new Date().toLocaleString("en-GB");
+      const paidAmount = paymentType === "CASH" ? parseInt(document.getElementById("cashPaid").value) || 0 : totalAmount;
+      const changeAmount = paymentType === "CASH" ? Math.max(0, paidAmount - totalAmount) : 0;
+      const newPoints = currentBuyerPoints + totalPoints;
+      const staffName = sessionStorage.getItem("staffName") || "Unknown";
+      const now = new Date().toLocaleString("en-GB");
 
-  // Save items details
-  const items = [];
-  if ((document.getElementById("copyarenQty").value || 0) > 0) {
-    items.push(`Copyaren ${document.getElementById("copyarenSize").value}ml × ${document.getElementById("copyarenQty").value}`);
-  }
-  if ((document.getElementById("chocobaraQty").value || 0) > 0) {
-    items.push(`Chocobara ${document.getElementById("chocobaraSize").value}ml × ${document.getElementById("chocobaraQty").value}`);
-  }
-  if ((document.getElementById("camericanoQty").value || 0) > 0) {
-    items.push(`Camericano ${document.getElementById("camericanoSize").value}ml × ${document.getElementById("camericanoQty").value}`);
-  }
+      // ✅ Generate items string
+      const itemsArr = [];
+      const cQ = parseInt(document.getElementById("copyarenQty").value) || 0;
+      const cS = document.getElementById("copyarenSize").value;
+      if(cQ>0) itemsArr.push(`Copyaren - ${cS}ml × ${cQ}`);
+      const bQ = parseInt(document.getElementById("chocobaraQty").value) || 0;
+      const bS = document.getElementById("chocobaraSize").value;
+      if(bQ>0) itemsArr.push(`Chocobara - ${bS}ml × ${bQ}`);
+      const aQ = parseInt(document.getElementById("camericanoQty").value) || 0;
+      const aS = document.getElementById("camericanoSize").value;
+      if(aQ>0) itemsArr.push(`Camericano - ${aS}ml × ${aQ}`);
+      const itemsStr = itemsArr.join(", ") || "-";
 
-  const transactionData = {
-    buyerId: currentBuyerId,
-    buyerName: currentBuyerName,
-    items: items.join(", ") || "-",
-    totalAmount,
-    totalPointsEarned: totalPoints,
-    paymentType,
-    paidAmount,
-    changeAmount,
-    staff: staffName,
-    dateTime: now
-  };
+      // Save transaction with items
+      db.ref("transactions").push({
+        buyerId: currentBuyerId,
+        buyerName: currentBuyerName,
+        totalAmount,
+        totalPointsEarned: totalPoints,
+        paymentType,
+        paidAmount,
+        changeAmount,
+        staff: staffName,
+        dateTime: now,
+        items: itemsStr
+      });
 
-  // Update buyer points
-  const newPoints = currentBuyerPoints + totalPoints;
-  db.ref("buyers/" + currentBuyerId).update({ points: newPoints });
+      db.ref("buyers/" + currentBuyerId).update({ points: newPoints });
+      sessionStorage.setItem("currentBuyerPoints", newPoints);
 
-  // Save transaction
-  db.ref("transactions").push(transactionData);
-
-  // Save to session
-  sessionStorage.setItem("currentBuyerPoints", newPoints);
-
-  alert(`✅ Transaction Recorded\nTotal: Rp ${totalAmount.toLocaleString()}\nPoints Earned: ${totalPoints}\nChange: Rp ${changeAmount.toLocaleString()}`);
-  
-  newTransaction();
-}
-
-// Redeem Points
-function redeemPoints(itemName, pointsUsed) {
-  if (!currentBuyerId) return alert("Search for a buyer first!");
-  if (!pointsUsed || pointsUsed <= 0) return alert("Enter valid points to redeem!");
-
-  const confirmRedeem = confirm(`Confirm redeem for ${itemName} using ${pointsUsed} points?`);
-  if (!confirmRedeem) return;
-
-  const staffName = sessionStorage.getItem("staffName") || "Unknown";
-  const now = new Date().toLocaleString("en-GB");
-
-  // Reduce buyer points
-  const remainingPoints = currentBuyerPoints - pointsUsed;
-  if (remainingPoints < 0) return alert("Not enough points to redeem!");
-
-  db.ref("buyers/" + currentBuyerId).update({ points: remainingPoints });
-
-  // Save redemption
-  db.ref("redemptions").push({
-    buyerId: currentBuyerId,
-    buyerName: currentBuyerName,
-    itemName,
-    totalPointsUsed: pointsUsed,
-    staff: staffName,
-    dateTime: now
-  });
-
-  sessionStorage.setItem("currentBuyerPoints", remainingPoints);
-  alert(`✅ Redeemed ${pointsUsed} points for ${itemName}\nRemaining Points: ${remainingPoints}`);
-
-  newTransaction();
-}
+      alert(`✅ Transaction Recorded\nTotal: Rp ${totalAmount.toLocaleString()}\nPoints Earned: ${totalPoints}\nChange: Rp ${changeAmount.toLocaleString()}`);
+      newTransaction();
+    }
 
     function newTransaction() {
       document.getElementById("buyerInfo").classList.add("hidden");
@@ -314,12 +273,12 @@ function redeemPoints(itemName, pointsUsed) {
     }
 
     function goToRedeem() {
-      if (!currentBuyerId) return alert("Search a buyer first!");
-      window.location.href = "redeem.html";
+      if (!currentBuyerId) return alert("Search for a buyer first!");
+      window.location.href = "redeem.html?buyerId=" + currentBuyerId;
     }
 
     function logoutStaff() {
-      sessionStorage.clear();
+      sessionStorage.removeItem("staffName");
       window.location.href = "index.html";
     }
   </script>
