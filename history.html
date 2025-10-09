@@ -14,6 +14,7 @@
     .card { background: white; border-radius: 12px; padding: 24px; max-width: 1200px; margin: 40px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
     th, td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; }
     th { cursor: pointer; }
+    .hover-row:hover { background-color: #fef3c7; }
   </style>
 </head>
 
@@ -64,7 +65,6 @@
   </div>
 
   <script>
-    // === Firebase Config ===
     const firebaseConfig = {
       apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
       authDomain: "kopi-copybara.firebaseapp.com",
@@ -100,6 +100,20 @@
       document.getElementById("downloadExcel").addEventListener("click", downloadExcel);
     });
 
+    function formatItems(transaction) {
+      const items = [];
+      if (transaction.copyarenQty && transaction.copyarenQty > 0) {
+        items.push(`Copyaren ${transaction.copyarenSize || ""}ml × ${transaction.copyarenQty}`);
+      }
+      if (transaction.chocobaraQty && transaction.chocobaraQty > 0) {
+        items.push(`Chocobara ${transaction.chocobaraSize || ""}ml × ${transaction.chocobaraQty}`);
+      }
+      if (transaction.camericanoQty && transaction.camericanoQty > 0) {
+        items.push(`Camericano ${transaction.camericanoSize || ""}ml × ${transaction.camericanoQty}`);
+      }
+      return items.length > 0 ? items.join(", ") : (transaction.itemName || "-");
+    }
+
     async function loadHistory() {
       const table = document.getElementById("historyTable");
       table.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">Loading...</td></tr>`;
@@ -111,33 +125,27 @@
 
       historyRows = [];
 
-      // 🟤 Transactions (Points Earned)
+      // Transactions (Points Earned)
       transactionsSnap.forEach(child => {
         const t = child.val();
         if (!t || !t.buyerName) return;
 
-        const itemDetails = [
-          t.copyarenQty > 0 ? `Copyaren ${t.copyarenSize || ""}ml (${t.copyarenQty})` : "",
-          t.chocobaraQty > 0 ? `Chocobara ${t.chocobaraSize || ""}ml (${t.chocobaraQty})` : "",
-          t.camericanoQty > 0 ? `Camericano ${t.camericanoSize || ""}ml (${t.camericanoQty})` : ""
-        ].filter(Boolean).join(", ") || (t.itemName || "-");
-
         historyRows.push({
           dateTime: t.dateTime || "-",
           buyerName: t.buyerName,
-          items: itemDetails,
+          items: formatItems(t),
           totalAmount: t.totalAmount || 0,
           paymentType: t.paymentType || "-",
           paidAmount: t.paidAmount || 0,
           changeAmount: t.changeAmount || 0,
-          points: t.totalPointsEarned || 0, // ✅ fixed
+          points: t.totalPointsEarned || 0,
           redeem: "-",
           remainingPoints: "-",
           staff: t.staff || "-"
         });
       });
 
-      // 🟤 Redemptions (Points Used)
+      // Redemptions (Points Used)
       redemptionsSnap.forEach(child => {
         const r = child.val();
         if (!r) return;
@@ -163,26 +171,26 @@
         });
       });
 
-      // 🔹 Fetch remaining points for all unique buyers
-      const memberNames = [...new Set(historyRows.map(r => r.buyerName).filter(Boolean))];
-      const memberPromises = memberNames.map(name =>
-        db.ref("members/" + name).once("value").then(snap => ({
-          name,
-          remainingPoints: snap.val()?.points || 0
-        }))
+      // Fetch remaining points for all buyers
+      const buyerIds = [...new Set(historyRows.map(r => r.buyerName))];
+      const promises = buyerIds.map(name =>
+        db.ref("buyers").orderByChild("name").equalTo(name).once("value")
+          .then(snap => {
+            const val = snap.val();
+            return { name, points: val ? Object.values(val)[0].points || 0 : 0 };
+          })
       );
 
-      Promise.all(memberPromises).then(memberData => {
-        const memberMap = {};
-        memberData.forEach(m => (memberMap[m.name] = m.remainingPoints));
+      const members = await Promise.all(promises);
+      const pointsMap = {};
+      members.forEach(m => pointsMap[m.name] = m.points);
 
-        historyRows = historyRows.map(row => ({
-          ...row,
-          remainingPoints: memberMap[row.buyerName] ?? "-"
-        }));
+      historyRows = historyRows.map(r => ({
+        ...r,
+        remainingPoints: pointsMap[r.buyerName] ?? "-"
+      }));
 
-        renderHistory();
-      });
+      renderHistory();
     }
 
     function renderHistory() {
@@ -200,7 +208,7 @@
       }
 
       table.innerHTML = historyRows.map(r => `
-        <tr class="hover:bg-amber-50">
+        <tr class="hover-row">
           <td>${r.dateTime}</td>
           <td>${r.buyerName}</td>
           <td>${r.items}</td>
@@ -210,13 +218,12 @@
           <td>${r.changeAmount !== "-" ? "Rp " + Number(r.changeAmount).toLocaleString() : "-"}</td>
           <td>${r.points}</td>
           <td>${r.redeem !== "-" ? r.redeem + " pts" : "-"}</td>
-          <td>${r.remainingPoints !== undefined ? r.remainingPoints : "-"}</td>
+          <td>${r.remainingPoints}</td>
           <td>${r.staff}</td>
         </tr>
       `).join("");
     }
 
-    // ✅ Excel Export
     function downloadExcel() {
       if (historyRows.length === 0) {
         alert("No data to export!");
@@ -235,7 +242,7 @@
           r.changeAmount === "-" ? "" : r.changeAmount,
           r.points === "-" ? "" : r.points,
           r.redeem === "-" ? "" : r.redeem,
-          r.remainingPoints === "-" ? "" : r.remainingPoints,
+          r.remainingPoints,
           r.staff
         ])
       ];
