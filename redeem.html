@@ -45,7 +45,6 @@
     </div>
 
     <button onclick="submitRedeem()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-3 hover:bg-amber-800">Redeem</button>
-    <button onclick="cancelRedemption()" class="w-full mt-2 bg-gray-300 text-gray-800 p-2 rounded-lg hover:bg-gray-400">Cancel</button>
   </div>
 
   <div class="mt-6 space-y-3">
@@ -77,42 +76,32 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("staffNameDisplay").textContent = staffName;
 });
 
-// --- Search Buyer ---
+// === Search Buyer ===
 function searchBuyer() {
   const query = document.getElementById("searchBuyer").value.trim().toLowerCase();
   if (!query) return alert("Enter buyer name or phone!");
 
-  // Check redemption lock
-  db.ref("system/redemptionLock").once("value").then(snap => {
-    if (snap.val() === true) {
-      return alert("❌ Another redemption is currently in progress. Please wait.");
-    }
+  db.ref("buyers").once("value").then(snapshot => {
+    let found = false;
+    snapshot.forEach(child => {
+      const data = child.val();
+      if ((data.name && data.name.toLowerCase().includes(query)) ||
+          (data.phone && data.phone.includes(query))) {
+        found = true;
+        currentBuyerId = child.key;
+        currentBuyerName = data.name;
+        currentBuyerPoints = data.points || 0;
 
-    db.ref("buyers").once("value").then(snapshot => {
-      let found = false;
-      snapshot.forEach(child => {
-        const data = child.val();
-        if ((data.name && data.name.toLowerCase().includes(query)) || 
-            (data.phone && data.phone.includes(query))) {
-          found = true;
-          currentBuyerId = child.key;
-          currentBuyerName = data.name;
-          currentBuyerPoints = data.points || 0;
-
-          document.getElementById("buyerFoundName").innerText = currentBuyerName;
-          document.getElementById("buyerFoundPoints").innerText = currentBuyerPoints;
-          document.getElementById("buyerInfo").classList.remove("hidden");
-
-          // Set redemption lock
-          db.ref("system/redemptionLock").set(true);
-        }
-      });
-      if (!found) alert("Buyer not found!");
+        document.getElementById("buyerFoundName").innerText = currentBuyerName;
+        document.getElementById("buyerFoundPoints").innerText = currentBuyerPoints;
+        document.getElementById("buyerInfo").classList.remove("hidden");
+      }
     });
+    if (!found) alert("Buyer not found!");
   });
 }
 
-// --- Submit Redemption ---
+// === Submit Redeem with Lock Mechanism ===
 function submitRedeem() {
   if (!currentBuyerId) return alert("Search for a buyer first!");
 
@@ -126,51 +115,52 @@ function submitRedeem() {
     return alert(`Not enough points! Buyer has ${currentBuyerPoints} pts.`);
   }
 
+  // Confirm redemption
   const confirmRedeem = confirm(`Confirm redeem: ${qty} × ${rewardName} for ${totalPointsNeeded} pts?`);
   if (!confirmRedeem) return;
 
   const now = new Date().toLocaleString("en-GB");
   const staffName = sessionStorage.getItem("staffName") || "Unknown";
 
-  // Atomically deduct points from master
-  const memberRef = db.ref("members/" + currentBuyerName);
-  memberRef.transaction(member => {
-    if (member) {
-      if ((member.points || 0) < totalPointsNeeded) return; // abort if not enough points
-      member.points -= totalPointsNeeded;
-    }
-    return member;
+  // Set redemption lock globally
+  const lockRef = db.ref("system/redemptionLock");
+  lockRef.transaction(lock => {
+    if (lock) return; // someone else is redeeming
+    return true; // lock now
   }).then(result => {
-    if (!result.committed) return alert("Transaction failed. Please try again.");
+    if (!result.committed) return alert("❌ Another redemption is in progress. Try again later.");
 
-    // Record redemption
-    db.ref("redemptions").push({
-      buyerId: currentBuyerId,
-      buyerName: currentBuyerName,
-      itemName: rewardName,
-      pointsUsed: totalPointsNeeded,
-      qty,
-      staff: staffName,
-      dateTime: now
-    }).then(() => {
-      alert("✅ Redemption successful!");
-      // Release lock
-      db.ref("system/redemptionLock").set(false);
-      window.location.reload();
+    // Deduct points atomically
+    const memberRef = db.ref("members/" + currentBuyerName);
+    memberRef.transaction(member => {
+      if (member) {
+        if ((member.points || 0) < totalPointsNeeded) return;
+        member.points -= totalPointsNeeded;
+      }
+      return member;
+    }).then(result => {
+      if (!result.committed) {
+        lockRef.set(false); // release lock
+        return alert("Transaction failed. Please try again.");
+      }
+
+      // Record redemption
+      db.ref("redemptions").push({
+        buyerId: currentBuyerId,
+        buyerName: currentBuyerName,
+        itemName: rewardName,
+        pointsUsed: totalPointsNeeded,
+        qty,
+        staff: staffName,
+        dateTime: now,
+        completed: true
+      }).then(() => {
+        lockRef.set(false); // release lock
+        alert("✅ Redemption successful!");
+        window.location.reload();
+      });
     });
   });
-}
-
-// --- Cancel Redemption ---
-function cancelRedemption(){
-  currentBuyerId = null;
-  currentBuyerName = "";
-  currentBuyerPoints = 0;
-  document.getElementById("buyerInfo").classList.add("hidden");
-  document.getElementById("searchBuyer").value = "";
-
-  // Release lock
-  db.ref("system/redemptionLock").set(false);
 }
 
 function logoutStaff() {
