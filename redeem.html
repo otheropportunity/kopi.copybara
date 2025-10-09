@@ -9,7 +9,7 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
   <style>
     body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
-    .card { background: white; border-radius: 12px; padding: 24px; max-width: 500px; margin: 50px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    .card { background: white; border-radius: 12px; padding: 24px; max-width: 600px; margin: 50px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
     select, input[type="number"], input[type="text"] { border: 1px solid #ccc; border-radius: 6px; padding: 6px; }
   </style>
 </head>
@@ -29,22 +29,24 @@
     <p><strong>Name:</strong> <span id="buyerFoundName"></span></p>
     <p><strong>Points Available:</strong> <span id="buyerFoundPoints"></span></p>
 
-    <h3 class="font-semibold mb-2 text-amber-800 mt-4">Select Reward Item:</h3>
-    <div class="mb-3">
-      <label class="block mb-1">Reward Item:</label>
-      <select id="rewardItem" class="w-full p-2 border rounded">
-        <option value="Copyaren - 500ml" data-points="40">Copyaren - 500ml (40 pts)</option>
-        <option value="Chocobara - Glass 175ml" data-points="12">Chocobara - Glass 175ml (12 pts)</option>
-        <option value="Camericano - Glass 175ml" data-points="8">Camericano - Glass 175ml (8 pts)</option>
-      </select>
+    <h3 class="font-semibold mb-2 text-amber-800 mt-4">Select Reward Items:</h3>
+
+    <div id="rewardItemsContainer">
+      <!-- Reward item template -->
+      <div class="mb-3 rewardItemRow">
+        <label class="block mb-1">Reward Item:</label>
+        <select class="w-full p-2 border rounded rewardItemSelect">
+          <option value="Copyaren - 500ml" data-points="40">Copyaren - 500ml (40 pts)</option>
+          <option value="Chocobara - Glass 175ml" data-points="12">Chocobara - Glass 175ml (12 pts)</option>
+          <option value="Camericano - Glass 175ml" data-points="8">Camericano - Glass 175ml (8 pts)</option>
+        </select>
+        <label class="block mb-1 mt-2">Quantity:</label>
+        <input type="number" class="w-full p-2 border rounded rewardQty" min="1" value="1" />
+      </div>
     </div>
 
-    <div class="mb-3">
-      <label class="block mb-1">Quantity:</label>
-      <input type="number" id="rewardQty" min="1" value="1" class="w-full p-2 border rounded" />
-    </div>
-
-    <button onclick="submitRedeem()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-3 hover:bg-amber-800">Redeem</button>
+    <button onclick="addRewardItem()" class="w-full bg-green-600 text-white p-2 rounded-lg mt-2 hover:bg-green-700">➕ Add Another Item</button>
+    <button onclick="submitRedeem()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-3 hover:bg-amber-800">Redeem All Items</button>
   </div>
 
   <div class="mt-6 space-y-3">
@@ -76,7 +78,15 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("staffNameDisplay").textContent = staffName;
 });
 
-// === Search Buyer ===
+// Add another reward item row
+function addRewardItem() {
+  const container = document.getElementById("rewardItemsContainer");
+  const newRow = container.firstElementChild.cloneNode(true);
+  newRow.querySelector(".rewardQty").value = 1;
+  container.appendChild(newRow);
+}
+
+// Search Buyer
 function searchBuyer() {
   const query = document.getElementById("searchBuyer").value.trim().toLowerCase();
   if (!query) return alert("Enter buyer name or phone!");
@@ -101,36 +111,39 @@ function searchBuyer() {
   });
 }
 
-// === Submit Redeem with Lock Mechanism ===
+// Submit Redeem
 function submitRedeem() {
   if (!currentBuyerId) return alert("Search for a buyer first!");
 
-  const item = document.getElementById("rewardItem");
-  const rewardName = item.value;
-  const rewardPoints = parseInt(item.selectedOptions[0].dataset.points);
-  const qty = parseInt(document.getElementById("rewardQty").value) || 1;
-  const totalPointsNeeded = rewardPoints * qty;
+  // Collect all items and total points
+  const rewardRows = document.querySelectorAll(".rewardItemRow");
+  let totalPointsNeeded = 0;
+  const redeemItems = [];
 
-  if (currentBuyerPoints < totalPointsNeeded) {
-    return alert(`Not enough points! Buyer has ${currentBuyerPoints} pts.`);
-  }
+  rewardRows.forEach(row => {
+    const itemSelect = row.querySelector(".rewardItemSelect");
+    const qtyInput = row.querySelector(".rewardQty");
+    const qty = parseInt(qtyInput.value) || 0;
+    if (qty <= 0) return;
+    const pointsPerItem = parseInt(itemSelect.selectedOptions[0].dataset.points);
+    totalPointsNeeded += pointsPerItem * qty;
+    redeemItems.push({ name: itemSelect.value, qty, pointsPerItem });
+  });
 
-  // Confirm redemption
-  const confirmRedeem = confirm(`Confirm redeem: ${qty} × ${rewardName} for ${totalPointsNeeded} pts?`);
-  if (!confirmRedeem) return;
+  if (totalPointsNeeded === 0) return alert("Please select at least one item with quantity!");
+  if (currentBuyerPoints < totalPointsNeeded) return alert(`Not enough points! Buyer has ${currentBuyerPoints} pts.`);
+
+  if (!confirm(`Confirm redeem of ${redeemItems.length} item(s) for ${totalPointsNeeded} points?`)) return;
 
   const now = new Date().toLocaleString("en-GB");
   const staffName = sessionStorage.getItem("staffName") || "Unknown";
 
-  // Set redemption lock globally
+  // Redemption lock
   const lockRef = db.ref("system/redemptionLock");
-  lockRef.transaction(lock => {
-    if (lock) return; // someone else is redeeming
-    return true; // lock now
-  }).then(result => {
+  lockRef.transaction(lock => lock ? lock : true).then(result => {
     if (!result.committed) return alert("❌ Another redemption is in progress. Try again later.");
 
-    // Deduct points atomically
+    // Deduct points
     const memberRef = db.ref("members/" + currentBuyerName);
     memberRef.transaction(member => {
       if (member) {
@@ -140,22 +153,28 @@ function submitRedeem() {
       return member;
     }).then(result => {
       if (!result.committed) {
-        lockRef.set(false); // release lock
-        return alert("Transaction failed. Please try again.");
+        lockRef.set(false);
+        return alert("Transaction failed. Try again.");
       }
 
-      // Record redemption
-      db.ref("redemptions").push({
-        buyerId: currentBuyerId,
-        buyerName: currentBuyerName,
-        itemName: rewardName,
-        pointsUsed: totalPointsNeeded,
-        qty,
-        staff: staffName,
-        dateTime: now,
-        completed: true
-      }).then(() => {
-        lockRef.set(false); // release lock
+      // Record each redemption
+      const updates = {};
+      redeemItems.forEach(item => {
+        const key = db.ref("redemptions").push().key;
+        updates[key] = {
+          buyerId: currentBuyerId,
+          buyerName: currentBuyerName,
+          itemName: item.name,
+          qty: item.qty,
+          pointsUsed: item.pointsPerItem * item.qty,
+          staff: staffName,
+          dateTime: now,
+          completed: true
+        };
+      });
+
+      db.ref("redemptions").update(updates).then(() => {
+        lockRef.set(false);
         alert("✅ Redemption successful!");
         window.location.reload();
       });
