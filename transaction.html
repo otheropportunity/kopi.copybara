@@ -210,62 +210,94 @@
       return { totalAmount, totalPoints };
     }
 
-    function submitTransaction() {
-      if (!currentBuyerId) return alert("Search for a buyer first!");
-      if (!paymentType) return alert("Select payment type!");
+function submitTransaction() {
+  if (!currentBuyerId) return alert("Search for a buyer first!");
+  if (!paymentType) return alert("Select payment type!");
+  const { totalAmount, totalPoints } = calculateTotal();
+  
+  // If no items and no points, stop
+  if (totalAmount === 0 && totalPoints === 0) return alert("Please select items!");
+  
+  const confirmPurchase = confirm(`Confirm transaction?\nTotal: Rp ${totalAmount.toLocaleString()}\nPayment: ${paymentType}`);
+  if (!confirmPurchase) return;
 
-      // Read item quantities and sizes
-      const cQ = parseInt(document.getElementById("copyarenQty").value) || 0;
-      const cS = document.getElementById("copyarenSize").value;
-      const bQ = parseInt(document.getElementById("chocobaraQty").value) || 0;
-      const bS = document.getElementById("chocobaraSize").value;
-      const aQ = parseInt(document.getElementById("camericanoQty").value) || 0;
-      const aS = document.getElementById("camericanoSize").value;
+  const paidAmount = paymentType === "CASH" ? parseInt(document.getElementById("cashPaid").value) || 0 : totalAmount;
+  const changeAmount = paymentType === "CASH" ? Math.max(0, paidAmount - totalAmount) : 0;
+  const staffName = sessionStorage.getItem("staffName") || "Unknown";
+  const now = new Date().toLocaleString("en-GB");
 
-      const totalAmount = cQ * prices.copyaren[cS] + bQ * prices.chocobara[bS] + aQ * prices.camericano[aS];
-      const totalPoints = cQ + bQ + aQ;
+  // Save items details
+  const items = [];
+  if ((document.getElementById("copyarenQty").value || 0) > 0) {
+    items.push(`Copyaren ${document.getElementById("copyarenSize").value}ml × ${document.getElementById("copyarenQty").value}`);
+  }
+  if ((document.getElementById("chocobaraQty").value || 0) > 0) {
+    items.push(`Chocobara ${document.getElementById("chocobaraSize").value}ml × ${document.getElementById("chocobaraQty").value}`);
+  }
+  if ((document.getElementById("camericanoQty").value || 0) > 0) {
+    items.push(`Camericano ${document.getElementById("camericanoSize").value}ml × ${document.getElementById("camericanoQty").value}`);
+  }
 
-      if (totalAmount === 0 && totalPoints === 0) return alert("Please select items!");
+  const transactionData = {
+    buyerId: currentBuyerId,
+    buyerName: currentBuyerName,
+    items: items.join(", ") || "-",
+    totalAmount,
+    totalPointsEarned: totalPoints,
+    paymentType,
+    paidAmount,
+    changeAmount,
+    staff: staffName,
+    dateTime: now
+  };
 
-      const confirmPurchase = confirm(`Confirm transaction?\nTotal: Rp ${totalAmount.toLocaleString()}\nPayment: ${paymentType}`);
-      if (!confirmPurchase) return;
+  // Update buyer points
+  const newPoints = currentBuyerPoints + totalPoints;
+  db.ref("buyers/" + currentBuyerId).update({ points: newPoints });
 
-      const paidAmount = paymentType === "CASH" ? parseInt(document.getElementById("cashPaid").value) || 0 : totalAmount;
-      const changeAmount = paymentType === "CASH" ? Math.max(0, paidAmount - totalAmount) : 0;
+  // Save transaction
+  db.ref("transactions").push(transactionData);
 
-      const newPoints = currentBuyerPoints + totalPoints;
-      const staffName = sessionStorage.getItem("staffName") || "Unknown";
-      const now = new Date().toLocaleString("en-GB");
+  // Save to session
+  sessionStorage.setItem("currentBuyerPoints", newPoints);
 
-      // Update buyer points
-      db.ref("buyers/" + currentBuyerId).update({ points: newPoints });
+  alert(`✅ Transaction Recorded\nTotal: Rp ${totalAmount.toLocaleString()}\nPoints Earned: ${totalPoints}\nChange: Rp ${changeAmount.toLocaleString()}`);
+  
+  newTransaction();
+}
 
-      // Push transaction with item details included
-      db.ref("transactions").push({
-        buyerId: currentBuyerId,
-        buyerName: currentBuyerName,
-        copyarenQty: cQ,
-        copyarenSize: cS,
-        chocobaraQty: bQ,
-        chocobaraSize: bS,
-        camericanoQty: aQ,
-        camericanoSize: aS,
-        totalAmount,
-        totalPointsEarned: totalPoints,
-        paymentType,
-        paidAmount,
-        changeAmount,
-        staff: staffName,
-        dateTime: now
-      });
+// Redeem Points
+function redeemPoints(itemName, pointsUsed) {
+  if (!currentBuyerId) return alert("Search for a buyer first!");
+  if (!pointsUsed || pointsUsed <= 0) return alert("Enter valid points to redeem!");
 
-      // Update session
-      sessionStorage.setItem("currentBuyerPoints", newPoints);
+  const confirmRedeem = confirm(`Confirm redeem for ${itemName} using ${pointsUsed} points?`);
+  if (!confirmRedeem) return;
 
-      alert(`✅ Transaction Recorded\nTotal: Rp ${totalAmount.toLocaleString()}\nPoints Earned: ${totalPoints}\nChange: Rp ${changeAmount.toLocaleString()}`);
+  const staffName = sessionStorage.getItem("staffName") || "Unknown";
+  const now = new Date().toLocaleString("en-GB");
 
-      newTransaction();
-    }
+  // Reduce buyer points
+  const remainingPoints = currentBuyerPoints - pointsUsed;
+  if (remainingPoints < 0) return alert("Not enough points to redeem!");
+
+  db.ref("buyers/" + currentBuyerId).update({ points: remainingPoints });
+
+  // Save redemption
+  db.ref("redemptions").push({
+    buyerId: currentBuyerId,
+    buyerName: currentBuyerName,
+    itemName,
+    totalPointsUsed: pointsUsed,
+    staff: staffName,
+    dateTime: now
+  });
+
+  sessionStorage.setItem("currentBuyerPoints", remainingPoints);
+  alert(`✅ Redeemed ${pointsUsed} points for ${itemName}\nRemaining Points: ${remainingPoints}`);
+
+  newTransaction();
+}
 
     function newTransaction() {
       document.getElementById("buyerInfo").classList.add("hidden");
