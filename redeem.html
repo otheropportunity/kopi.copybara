@@ -20,6 +20,7 @@
       appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
     };
     firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
   </script>
 
   <style>
@@ -115,132 +116,124 @@
   </div>
 
   <script>
-    const db = firebase.database();
-    const STAFF_MASTER_PASSWORD = "230420";
-    let buyerId, buyerName, buyerPoints = 0, buyerPassword = "";
+    let buyerName = localStorage.getItem("currentBuyer") || "Unknown";
+    document.getElementById("welcomeName").innerText = "Welcome, " + buyerName;
 
-    document.addEventListener("DOMContentLoaded", () => {
-      buyerId = sessionStorage.getItem("currentBuyerId");
-      buyerName = sessionStorage.getItem("currentBuyerName");
+    let currentPoints = 0;
+    const userPointsEl = document.getElementById("userPoints");
 
-      if (!buyerId) {
-        alert("Session expired. Returning to transaction page.");
-        window.location.href = "transaction.html";
+    const summaryModal = document.getElementById("summaryModal");
+    const passwordModal = document.getElementById("passwordModal");
+    const summaryList = document.getElementById("summaryList");
+    const summaryTotal = document.getElementById("summaryTotal");
+
+    // Load points from masterPoints
+    firebase.database().ref("masterPoints/" + buyerName).once("value").then(snapshot => {
+      if (snapshot.exists()) {
+        currentPoints = snapshot.val().points || 0;
+      } else {
+        firebase.database().ref("masterPoints/" + buyerName).set({ points: 0 });
+        currentPoints = 0;
+      }
+      userPointsEl.textContent = currentPoints;
+    });
+
+    function showSummary() {
+      let items = [];
+      let total = 0;
+
+      const drinks = [
+        { id: "copyaren", label: "Copyaren" },
+        { id: "chocobara", label: "Chocobara" },
+        { id: "camericano", label: "Camericano" }
+      ];
+
+      drinks.forEach(d => {
+        let qty = parseInt(document.getElementById(d.id + "Qty").value) || 0;
+        let pts = parseInt(document.getElementById(d.id + "Size").value);
+        if (qty > 0) {
+          items.push(`${d.label} - ${document.getElementById(d.id + "Size").selectedOptions[0].text} × ${qty}`);
+          total += qty * pts;
+        }
+      });
+
+      if (items.length === 0) {
+        alert("Please select at least one item to redeem.");
         return;
       }
 
-      loadBuyerData();
-    });
+      if (total > currentPoints) {
+        alert("Insufficient points to redeem!");
+        return;
+      }
 
-    function loadBuyerData() {
-      db.ref("buyers/" + buyerId).once("value").then(snap => {
-        if (snap.exists()) {
-          const data = snap.val();
-          buyerPoints = data.points || 0;
-          buyerPassword = data.password || "";
-          document.getElementById("welcomeName").textContent = `Welcome, ${buyerName}!`;
-          document.getElementById("userPoints").textContent = buyerPoints;
-        }
-      });
-    }
-
-    function calculateTotalPoints() {
-      return (
-        document.getElementById("copyarenQty").value * document.getElementById("copyarenSize").value +
-        document.getElementById("chocobaraQty").value * document.getElementById("chocobaraSize").value +
-        document.getElementById("camericanoQty").value * document.getElementById("camericanoSize").value
-      );
-    }
-
-    function showSummary() {
-      const totalCost = calculateTotalPoints();
-      if (totalCost <= 0) return alert("Select at least one item to redeem.");
-
-      const items = [];
-      const add = (id, name, selId) => {
-        const qty = document.getElementById(id).value;
-        if (qty > 0) {
-          const size = document.getElementById(selId);
-          items.push({ name: name, sizeText: size.options[size.selectedIndex].text, qty: qty });
-        }
-      };
-      add("copyarenQty", "Copyaren", "copyarenSize");
-      add("chocobaraQty", "Chocobara", "chocobaraSize");
-      add("camericanoQty", "Camericano", "camericanoSize");
-
-      sessionStorage.setItem("redeemItems", JSON.stringify(items));
-      sessionStorage.setItem("redeemTotal", totalCost);
-
-      document.getElementById("summaryList").innerHTML = items.map(i => `<li>${i.name} - ${i.sizeText} × ${i.qty}</li>`).join("");
-      document.getElementById("summaryTotal").textContent = totalCost;
-      document.getElementById("summaryModal").classList.remove("hidden");
+      summaryList.innerHTML = items.join("<br>");
+      summaryTotal.innerText = total + " pts";
+      summaryModal.classList.remove("hidden");
     }
 
     function cancelSummary() {
-      document.getElementById("summaryModal").classList.add("hidden");
+      summaryModal.classList.add("hidden");
     }
 
     function askConfirmation() {
-      document.getElementById("summaryModal").classList.add("hidden");
-      const totalCost = sessionStorage.getItem("redeemTotal");
-      const msg = `You want to redeem ${totalCost} points.\nYour total points: ${buyerPoints}.\nAre you sure?`;
-      if (confirm(msg)) document.getElementById("passwordModal").classList.remove("hidden");
+      summaryModal.classList.add("hidden");
+      passwordModal.classList.remove("hidden");
     }
 
     function cancelPassword() {
-      document.getElementById("passwordModal").classList.add("hidden");
+      passwordModal.classList.add("hidden");
     }
 
-    function confirmRedemption() {
-      const staffPass = document.getElementById("staffPassword").value.trim();
-      const memberPass = document.getElementById("memberPassword").value.trim();
-      const totalCost = parseInt(sessionStorage.getItem("redeemTotal") || 0);
+    async function confirmRedemption() {
+      const staffPass = document.getElementById("staffPassword").value;
+      const memberPass = document.getElementById("memberPassword").value;
+      const buyerRef = firebase.database().ref("buyers/" + buyerName);
 
-      if (staffPass !== STAFF_MASTER_PASSWORD) return alert("❌ Incorrect staff master password!");
-      if (memberPass !== buyerPassword) return alert("❌ Incorrect member password!");
-      if (buyerPoints < totalCost) return alert("❌ Not enough points!");
+      const snap = await buyerRef.once("value");
+      if (!snap.exists() || snap.val().password !== memberPass) {
+        alert("Invalid member password!");
+        return;
+      }
+      if (staffPass !== "230420") {
+        alert("Invalid staff master password!");
+        return;
+      }
 
-      const newPoints = buyerPoints - totalCost;
-      const items = JSON.parse(sessionStorage.getItem("redeemItems")) || [];
-      const itemNames = items.map(i => `${i.name} - ${i.sizeText} × ${i.qty}`).join(", ");
-      const staffName = sessionStorage.getItem("staffName") || "Unknown";
+      let totalPts = parseInt(summaryTotal.innerText) || 0;
+      let newPoints = currentPoints - totalPts;
+      if (newPoints < 0) newPoints = 0;
 
-      const redemption = {
-        buyerId,
-        buyerName,
-        dateTime: new Date().toLocaleString("en-GB"),
-        totalPointsUsed: totalCost,
-        itemName: itemNames,
-        staff: staffName,
-        remainingPoints: newPoints,
-        type: "Redeem"
-      };
+      await firebase.database().ref("masterPoints/" + buyerName).update({ points: newPoints });
 
-      // Update buyer points first
-      db.ref("buyers/" + buyerId).update({ points: newPoints }).then(() => {
-        // Save redemption + transaction
-        db.ref("redemptions/" + Date.now()).set(redemption);
-        db.ref("transactions").push({
-          buyerId,
-          buyerName,
-          totalPointsUsed: totalCost,
-          totalAmount: 0,
-          totalPointsEarned: 0,
-          items: itemNames,
-          paymentType: "REDEEM",
-          remainingPoints: newPoints,
-          staff: staffName,
-          dateTime: new Date().toLocaleString("en-GB")
-        });
+      const now = new Date().toLocaleString("en-GB");
+      const items = summaryList.innerText;
 
-        // Update local
-        buyerPoints = newPoints;
-        sessionStorage.setItem("currentBuyerPoints", newPoints);
-        document.getElementById("userPoints").textContent = newPoints;
-
-        document.getElementById("passwordModal").classList.add("hidden");
-        alert(`✅ Redemption successful! Remaining points: ${newPoints}`);
+      await firebase.database().ref("transactions").push({
+        datetime: now,
+        buyer: buyerName,
+        items: items,
+        total: "-",
+        payment: "REDEEM",
+        paid: "-",
+        change: "-",
+        earned: "-",
+        redeemed: `${totalPts} pts`,
+        remaining: newPoints,
+        staff: "Aji Saputra"
       });
+
+      alert(`✅ Redeem successful! Used ${totalPts} pts. Remaining: ${newPoints}`);
+      passwordModal.classList.add("hidden");
+      document.getElementById("staffPassword").value = "";
+      document.getElementById("memberPassword").value = "";
+
+      // reset input
+      ["copyaren", "chocobara", "camericano"].forEach(id => {
+        document.getElementById(id + "Qty").value = 0;
+      });
+      currentPoints = newPoints;
+      userPointsEl.textContent = newPoints;
     }
 
     function backToTransaction() {
