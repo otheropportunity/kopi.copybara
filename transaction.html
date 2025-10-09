@@ -9,23 +9,9 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
   <style>
-    body {
-      background-color: #fffaf0;
-      font-family: 'Poppins', sans-serif;
-    }
-    .card {
-      background: white;
-      border-radius: 12px;
-      padding: 24px;
-      max-width: 500px;
-      margin: 50px auto;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    }
-    select, input[type="number"], input[type="text"] {
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      padding: 6px;
-    }
+    body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
+    .card { background: white; border-radius: 12px; padding: 24px; max-width: 500px; margin: 50px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    select, input[type="number"], input[type="text"] { border: 1px solid #ccc; border-radius: 6px; padding: 6px; }
   </style>
 </head>
 <body>
@@ -46,6 +32,7 @@
 
       <h3 class="font-semibold mb-2 text-amber-800 mt-4">Select Items:</h3>
 
+      <!-- Copyaren -->
       <div class="mb-3">
         <div class="flex justify-between items-center mb-1">
           <label>Copyaren</label>
@@ -59,6 +46,7 @@
         </select>
       </div>
 
+      <!-- Chocobara -->
       <div class="mb-3">
         <div class="flex justify-between items-center mb-1">
           <label>Chocobara</label>
@@ -72,6 +60,7 @@
         </select>
       </div>
 
+      <!-- Camericano -->
       <div class="mb-3">
         <div class="flex justify-between items-center mb-1">
           <label>Camericano</label>
@@ -152,7 +141,7 @@ function setPaymentType(type){
   document.getElementById("cashInputSection").classList.toggle("hidden", type!=="CASH");
 }
 
-// === Search Buyer & Check Pending Redemption Lock ===
+// === Search Buyer ===
 function searchBuyer(){
   const query = document.getElementById("searchBuyer").value.trim().toLowerCase();
   if(!query) return alert("Enter buyer name or phone!");
@@ -166,23 +155,12 @@ function searchBuyer(){
         currentBuyerName = data.name;
         currentBuyerPoints = data.points || 0;
 
-        // Check pending redemption
-        db.ref("redemptions").orderByChild("buyerId").equalTo(currentBuyerId).once("value").then(redSnap=>{
-          let pending = false;
-          redSnap.forEach(r=>{
-            if(!r.val().completed) pending=true;
-          });
-          if(pending){
-            alert("❌ Cannot process transaction while redemption is pending!");
-            return;
-          }
-          document.getElementById("buyerFoundName").innerText = currentBuyerName;
-          document.getElementById("buyerFoundPoints").innerText = currentBuyerPoints;
-          document.getElementById("buyerInfo").classList.remove("hidden");
-          sessionStorage.setItem("currentBuyerId", currentBuyerId);
-          sessionStorage.setItem("currentBuyerName", currentBuyerName);
-          sessionStorage.setItem("currentBuyerPoints", currentBuyerPoints);
-        });
+        document.getElementById("buyerFoundName").innerText = currentBuyerName;
+        document.getElementById("buyerFoundPoints").innerText = currentBuyerPoints;
+        document.getElementById("buyerInfo").classList.remove("hidden");
+        sessionStorage.setItem("currentBuyerId", currentBuyerId);
+        sessionStorage.setItem("currentBuyerName", currentBuyerName);
+        sessionStorage.setItem("currentBuyerPoints", currentBuyerPoints);
       }
     });
     if(!found) alert("Buyer not found!");
@@ -208,15 +186,14 @@ function calculateTotal(){
   return { totalAmount,totalPoints };
 }
 
+// === Submit Transaction with redemption lock check ===
 function submitTransaction(){
   if(!currentBuyerId) return alert("Search for a buyer first!");
   if(!paymentType) return alert("Select payment type!");
 
-  // Check again pending redemption before submit
-  db.ref("redemptions").orderByChild("buyerId").equalTo(currentBuyerId).once("value").then(redSnap=>{
-    let pending=false;
-    redSnap.forEach(r=>{ if(!r.val().completed) pending=true; });
-    if(pending){ alert("❌ Cannot process transaction while redemption is pending!"); return; }
+  // Check pending redemption lock globally
+  db.ref("system/redemptionLock").once("value").then(lockSnap=>{
+    if(lockSnap.val()) { alert("❌ Cannot process transaction while redemption is in progress!"); return; }
 
     const { totalAmount,totalPoints } = calculateTotal();
     if(totalAmount===0) return alert("Please select items!");
@@ -242,21 +219,12 @@ function submitTransaction(){
       totalAmount, paymentType, paidAmount, changeAmount,
       totalPointsEarned: totalPoints,
       staff: staffName, dateTime: now
-    }).then(()=>{
-      alert("✅ Transaction successful!");
-      window.location.reload();
-    });
+    }).then(()=>{ alert("✅ Transaction successful!"); window.location.reload(); });
   });
 }
 
-function goToRedeem(){
-  window.location.href="redeem.html";
-}
-
-function logoutStaff(){
-  sessionStorage.clear();
-  window.location.href="index.html";
-}
+function goToRedeem(){ window.location.href="redeem.html"; }
+function logoutStaff(){ sessionStorage.clear(); window.location.href="index.html"; }
 </script>
 </body>
 </html>
