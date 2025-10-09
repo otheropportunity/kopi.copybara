@@ -9,259 +9,263 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
   <style>
-    body {
-      background-color: #fffaf0;
-      font-family: 'Poppins', sans-serif;
-    }
-    .card {
-      background: white;
-      border-radius: 12px;
-      padding: 24px;
-      max-width: 500px;
-      margin: 50px auto;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    }
-    select, input[type="number"], input[type="text"] {
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      padding: 6px;
-    }
+    body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
+    .card { background: white; border-radius: 12px; padding: 24px; max-width: 500px; margin: 50px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    select, input[type="number"], input[type="text"] { border: 1px solid #ccc; border-radius: 6px; padding: 6px; }
   </style>
 </head>
 
 <body>
-  <div class="card">
-    <h1 class="text-2xl font-bold text-center text-amber-800 mb-2">☕ Staff Transaction Panel</h1>
-    <h2 class="text-lg font-semibold text-center mb-4">
-      Welcome, <span id="staffNameDisplay" class="text-amber-700"></span>
-    </h2>
+<div class="card">
+  <h1 class="text-2xl font-bold text-center text-amber-800 mb-2">☕ Staff Transaction Panel</h1>
+  <h2 class="text-lg font-semibold text-center mb-4">
+    Welcome, <span id="staffNameDisplay" class="text-amber-700"></span>
+  </h2>
 
-    <!-- Search Buyer -->
-    <div class="mb-4">
-      <input id="searchBuyer" class="w-full border rounded p-2 mb-2" placeholder="Search Buyer (Name / Phone)" />
-      <button onclick="searchBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg hover:bg-green-800 transition">Search</button>
-    </div>
-
-    <!-- Buyer Info -->
-    <div id="buyerInfo" class="hidden border-t pt-3">
-      <p><strong>Name:</strong> <span id="buyerFoundName"></span></p>
-      <p><strong>Points:</strong> <span id="buyerFoundPoints"></span></p>
-
-      <h3 class="font-semibold mb-2 text-amber-800 mt-4">Select Items:</h3>
-
-      <!-- Copyaren -->
-      <div class="mb-3">
-        <div class="flex justify-between items-center mb-1">
-          <label>Copyaren</label>
-          <input type="number" id="copyarenQty" min="0" value="0" class="w-20 text-center">
-        </div>
-        <select id="copyarenSize" class="w-full">
-          <option value="175">Glass 175ml - Rp 10.000</option>
-          <option value="250">Pocket 250ml - Rp 20.000</option>
-          <option value="500">500ml - Rp 40.000</option>
-          <option value="1000">1L - Rp 80.000</option>
-        </select>
-      </div>
-
-      <!-- Chocobara -->
-      <div class="mb-3">
-        <div class="flex justify-between items-center mb-1">
-          <label>Chocobara</label>
-          <input type="number" id="chocobaraQty" min="0" value="0" class="w-20 text-center">
-        </div>
-        <select id="chocobaraSize" class="w-full">
-          <option value="175">Glass 175ml - Rp 12.000</option>
-          <option value="250">Pocket 250ml - Rp 24.000</option>
-          <option value="500">500ml - Rp 48.000</option>
-          <option value="1000">1L - Rp 95.000</option>
-        </select>
-      </div>
-
-      <!-- Camericano -->
-      <div class="mb-3">
-        <div class="flex justify-between items-center mb-1">
-          <label>Camericano</label>
-          <input type="number" id="camericanoQty" min="0" value="0" class="w-20 text-center">
-        </div>
-        <select id="camericanoSize" class="w-full">
-          <option value="175">Glass 175ml - Rp 8.000</option>
-          <option value="250">Pocket 250ml - Rp 15.000</option>
-          <option value="500">500ml - Rp 30.000</option>
-          <option value="1000">1L - Rp 60.000</option>
-        </select>
-      </div>
-
-      <!-- Transaction Type -->
-      <div class="mt-3">
-        <label class="font-semibold text-amber-700">Transaction Type:</label>
-        <div class="flex gap-3 mt-2">
-          <button type="button" id="btnQRIS" onclick="setPaymentType('QRIS')" class="flex-1 bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700">QRIS</button>
-          <button type="button" id="btnCash" onclick="setPaymentType('CASH')" class="flex-1 bg-green-600 text-white p-2 rounded-lg hover:bg-green-700">CASH</button>
-        </div>
-        <p class="text-sm mt-2 text-gray-600">Selected: <span id="selectedPayment">None</span></p>
-      </div>
-
-      <!-- Cash Payment Input -->
-      <div id="cashInputSection" class="hidden mt-3 bg-amber-50 border border-amber-200 p-3 rounded-lg">
-        <label class="block mb-1 font-semibold">Customer Paid (Rp):</label>
-        <input type="number" id="cashPaid" min="0" class="w-full p-2 border rounded" placeholder="Enter paid amount" />
-        <p class="text-sm text-gray-600 mt-2">Change: Rp <span id="changeAmount">0</span></p>
-      </div>
-
-      <!-- Summary -->
-      <div class="mt-4 bg-amber-50 p-3 rounded-lg border border-amber-200">
-        <p><strong>Total Amount:</strong> Rp <span id="totalAmount">0</span></p>
-        <p><strong>Points Earned:</strong> <span id="totalPoints">0</span></p>
-      </div>
-
-      <button onclick="calculateTotal()" class="w-full bg-yellow-600 text-white p-2 rounded-lg mt-3 hover:bg-yellow-700">🧮 Calculate Total</button>
-      <button onclick="submitTransaction()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-3 hover:bg-amber-800">Submit Transaction</button>
-      <button onclick="goToRedeem()" class="w-full bg-blue-700 text-white p-2 rounded-lg mt-3 hover:bg-blue-800">Redeem Points</button>
-    </div>
-
-    <!-- Bottom Buttons -->
-    <div class="mt-6 space-y-3">
-      <button onclick="window.location.href='history.html'" class="w-full bg-yellow-600 text-white p-2 rounded-lg hover:bg-yellow-700">View Transaction History</button>
-      <button onclick="logoutStaff()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg hover:bg-gray-400">Logout</button>
-    </div>
+  <!-- Search Buyer -->
+  <div class="mb-4">
+    <input id="searchBuyer" class="w-full border rounded p-2 mb-2" placeholder="Search Buyer (Name / Phone)" />
+    <button onclick="searchBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg hover:bg-green-800 transition">Search</button>
   </div>
 
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
-      authDomain: "kopi-copybara.firebaseapp.com",
-      databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "kopi-copybara",
-      storageBucket: "kopi-copybara.appspot.com",
-      messagingSenderId: "729875984861",
-      appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+  <!-- Buyer Info -->
+  <div id="buyerInfo" class="hidden border-t pt-3">
+    <p><strong>Name:</strong> <span id="buyerFoundName"></span></p>
+    <p><strong>Points:</strong> <span id="buyerFoundPoints"></span></p>
 
-    let currentBuyerId = null;
-    let currentBuyerName = "";
-    let currentBuyerPoints = 0;
-    let paymentType = null;
+    <h3 class="font-semibold mb-2 text-amber-800 mt-4">Select Items:</h3>
 
-    const prices = {
-      copyaren: {175: 10000, 250: 20000, 500: 40000, 1000: 80000},
-      chocobara: {175: 12000, 250: 24000, 500: 48000, 1000: 95000},
-      camericano: {175: 8000, 250: 15000, 500: 30000, 1000: 60000}
-    };
+    <!-- Copyaren -->
+    <div class="mb-3">
+      <div class="flex justify-between items-center mb-1">
+        <label>Copyaren</label>
+        <input type="number" id="copyarenQty" min="0" value="0" class="w-20 text-center">
+      </div>
+      <select id="copyarenSize" class="w-full">
+        <option value="175">Glass 175ml - Rp 10.000</option>
+        <option value="250">Pocket 250ml - Rp 20.000</option>
+        <option value="500">500ml - Rp 40.000</option>
+        <option value="1000">1L - Rp 80.000</option>
+      </select>
+    </div>
 
-    document.addEventListener("DOMContentLoaded", () => {
-      const staffName = sessionStorage.getItem("staffName");
-      if (!staffName) {
-        alert("Session expired or not logged in. Please login as staff.");
-        window.location.href = "index.html";
-        return;
+    <!-- Chocobara -->
+    <div class="mb-3">
+      <div class="flex justify-between items-center mb-1">
+        <label>Chocobara</label>
+        <input type="number" id="chocobaraQty" min="0" value="0" class="w-20 text-center">
+      </div>
+      <select id="chocobaraSize" class="w-full">
+        <option value="175">Glass 175ml - Rp 12.000</option>
+        <option value="250">Pocket 250ml - Rp 24.000</option>
+        <option value="500">500ml - Rp 48.000</option>
+        <option value="1000">1L - Rp 95.000</option>
+      </select>
+    </div>
+
+    <!-- Camericano -->
+    <div class="mb-3">
+      <div class="flex justify-between items-center mb-1">
+        <label>Camericano</label>
+        <input type="number" id="camericanoQty" min="0" value="0" class="w-20 text-center">
+      </div>
+      <select id="camericanoSize" class="w-full">
+        <option value="175">Glass 175ml - Rp 8.000</option>
+        <option value="250">Pocket 250ml - Rp 15.000</option>
+        <option value="500">500ml - Rp 30.000</option>
+        <option value="1000">1L - Rp 60.000</option>
+      </select>
+    </div>
+
+    <!-- Transaction Type -->
+    <div class="mt-3">
+      <label class="font-semibold text-amber-700">Transaction Type:</label>
+      <div class="flex gap-3 mt-2">
+        <button type="button" id="btnQRIS" onclick="setPaymentType('QRIS')" class="flex-1 bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700">QRIS</button>
+        <button type="button" id="btnCash" onclick="setPaymentType('CASH')" class="flex-1 bg-green-600 text-white p-2 rounded-lg hover:bg-green-700">CASH</button>
+      </div>
+      <p class="text-sm mt-2 text-gray-600">Selected: <span id="selectedPayment">None</span></p>
+    </div>
+
+    <!-- Cash Payment Input -->
+    <div id="cashInputSection" class="hidden mt-3 bg-amber-50 border border-amber-200 p-3 rounded-lg">
+      <label class="block mb-1 font-semibold">Customer Paid (Rp):</label>
+      <input type="number" id="cashPaid" min="0" class="w-full p-2 border rounded" placeholder="Enter paid amount" />
+      <p class="text-sm text-gray-600 mt-2">Change: Rp <span id="changeAmount">0</span></p>
+    </div>
+
+    <!-- Summary -->
+    <div class="mt-4 bg-amber-50 p-3 rounded-lg border border-amber-200">
+      <p><strong>Total Amount:</strong> Rp <span id="totalAmount">0</span></p>
+      <p><strong>Points Earned:</strong> <span id="totalPoints">0</span></p>
+    </div>
+
+    <button onclick="calculateTotal()" class="w-full bg-yellow-600 text-white p-2 rounded-lg mt-3 hover:bg-yellow-700">🧮 Calculate Total</button>
+    <button onclick="submitTransaction()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-3 hover:bg-amber-800">Submit Transaction</button>
+    <button onclick="goToRedeem()" class="w-full bg-blue-700 text-white p-2 rounded-lg mt-3 hover:bg-blue-800">Redeem Points</button>
+  </div>
+
+  <!-- Bottom Buttons -->
+  <div class="mt-6 space-y-3">
+    <button onclick="window.location.href='history.html'" class="w-full bg-yellow-600 text-white p-2 rounded-lg hover:bg-yellow-700">View Transaction History</button>
+    <button onclick="logoutStaff()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg hover:bg-gray-400">Logout</button>
+  </div>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
+  authDomain: "kopi-copybara.firebaseapp.com",
+  databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "kopi-copybara",
+  storageBucket: "kopi-copybara.appspot.com",
+  messagingSenderId: "729875984861",
+  appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let currentBuyerId = null;
+let currentBuyerName = "";
+let currentBuyerPoints = 0;
+let paymentType = null;
+
+const prices = {
+  copyaren: {175: 10000, 250: 20000, 500: 40000, 1000: 80000},
+  chocobara: {175: 12000, 250: 24000, 500: 48000, 1000: 95000},
+  camericano: {175: 8000, 250: 15000, 500: 30000, 1000: 60000}
+};
+
+document.addEventListener("DOMContentLoaded", () => {
+  const staffName = sessionStorage.getItem("staffName");
+  if (!staffName) {
+    alert("Session expired or not logged in. Please login as staff.");
+    window.location.href = "index.html";
+    return;
+  }
+  document.getElementById("staffNameDisplay").textContent = staffName;
+});
+
+function setPaymentType(type) {
+  paymentType = type;
+  document.getElementById("selectedPayment").textContent = type;
+  document.getElementById("cashInputSection").classList.toggle("hidden", type !== "CASH");
+}
+
+function searchBuyer() {
+  const query = document.getElementById("searchBuyer").value.trim().toLowerCase();
+  if (!query) return alert("Enter buyer name or phone!");
+  db.ref("buyers").once("value", snapshot => {
+    let found = false;
+    snapshot.forEach(child => {
+      const data = child.val();
+      if ((data.name && data.name.toLowerCase().includes(query)) ||
+          (data.phone && data.phone.includes(query))) {
+        found = true;
+        currentBuyerId = child.key;
+        currentBuyerName = data.name;
+        currentBuyerPoints = data.points || 0;
+        document.getElementById("buyerFoundName").innerText = data.name;
+        document.getElementById("buyerFoundPoints").innerText = currentBuyerPoints;
+        document.getElementById("buyerInfo").classList.remove("hidden");
+        sessionStorage.setItem("currentBuyerId", currentBuyerId);
+        sessionStorage.setItem("currentBuyerName", currentBuyerName);
+        sessionStorage.setItem("currentBuyerPoints", currentBuyerPoints);
       }
-      document.getElementById("staffNameDisplay").textContent = staffName;
     });
+    if (!found) alert("Buyer not found!");
+  });
+}
 
-    function setPaymentType(type) {
-      paymentType = type;
-      document.getElementById("selectedPayment").textContent = type;
-      document.getElementById("cashInputSection").classList.toggle("hidden", type !== "CASH");
-    }
+function calculateTotal() {
+  const cQ = parseInt(document.getElementById("copyarenQty").value) || 0;
+  const cS = document.getElementById("copyarenSize").value;
+  const bQ = parseInt(document.getElementById("chocobaraQty").value) || 0;
+  const bS = document.getElementById("chocobaraSize").value;
+  const aQ = parseInt(document.getElementById("camericanoQty").value) || 0;
+  const aS = document.getElementById("camericanoSize").value;
 
-    function searchBuyer() {
-      const query = document.getElementById("searchBuyer").value.trim().toLowerCase();
-      if (!query) return alert("Enter buyer name or phone!");
-      db.ref("buyers").once("value", snapshot => {
-        let found = false;
-        snapshot.forEach(child => {
-          const data = child.val();
-          if ((data.name && data.name.toLowerCase().includes(query)) ||
-              (data.phone && data.phone.includes(query))) {
-            found = true;
-            currentBuyerId = child.key;
-            currentBuyerName = data.name;
-            currentBuyerPoints = data.points || 0;
-            document.getElementById("buyerFoundName").innerText = data.name;
-            document.getElementById("buyerFoundPoints").innerText = currentBuyerPoints;
-            document.getElementById("buyerInfo").classList.remove("hidden");
-            sessionStorage.setItem("currentBuyerId", currentBuyerId);
-            sessionStorage.setItem("currentBuyerName", currentBuyerName);
-            sessionStorage.setItem("currentBuyerPoints", currentBuyerPoints);
-          }
-        });
-        if (!found) alert("Buyer not found!");
-      });
-    }
+  const totalAmount = cQ * prices.copyaren[cS] + bQ * prices.chocobara[bS] + aQ * prices.camericano[aS];
+  const totalPoints = cQ + bQ + aQ;
 
-    function calculateTotal() {
-      const cQ = parseInt(document.getElementById("copyarenQty").value) || 0;
-      const cS = document.getElementById("copyarenSize").value;
-      const bQ = parseInt(document.getElementById("chocobaraQty").value) || 0;
-      const bS = document.getElementById("chocobaraSize").value;
-      const aQ = parseInt(document.getElementById("camericanoQty").value) || 0;
-      const aS = document.getElementById("camericanoSize").value;
-      const totalAmount = cQ * prices.copyaren[cS] + bQ * prices.chocobara[bS] + aQ * prices.camericano[aS];
-      const totalPoints = cQ + bQ + aQ;
-      document.getElementById("totalAmount").textContent = totalAmount.toLocaleString();
-      document.getElementById("totalPoints").textContent = totalPoints;
-      if (paymentType === "CASH") {
-        const paid = parseInt(document.getElementById("cashPaid").value) || 0;
-        const change = paid > 0 ? Math.max(0, paid - totalAmount) : 0;
-        document.getElementById("changeAmount").textContent = change.toLocaleString();
-      }
-      return { totalAmount, totalPoints };
-    }
+  document.getElementById("totalAmount").textContent = totalAmount.toLocaleString();
+  document.getElementById("totalPoints").textContent = totalPoints;
 
-    function submitTransaction() {
-      if (!currentBuyerId) return alert("Search for a buyer first!");
-      if (!paymentType) return alert("Select payment type!");
-      const { totalAmount, totalPoints } = calculateTotal();
-      if (totalAmount === 0) return alert("Please select items!");
-      const confirmPurchase = confirm(`Confirm transaction?\nTotal: Rp ${totalAmount.toLocaleString()}\nPayment: ${paymentType}`);
-      if (!confirmPurchase) return;
-      const paidAmount = paymentType === "CASH" ? parseInt(document.getElementById("cashPaid").value) || 0 : totalAmount;
-      const changeAmount = paymentType === "CASH" ? Math.max(0, paidAmount - totalAmount) : 0;
-      const newPoints = currentBuyerPoints + totalPoints;
-      const staffName = sessionStorage.getItem("staffName") || "Unknown";
-      const now = new Date().toLocaleString("en-GB");
-      db.ref("buyers/" + currentBuyerId).update({ points: newPoints });
-      db.ref("transactions").push({
-        buyerId: currentBuyerId,
-        buyerName: currentBuyerName,
-        totalAmount,
-        totalPointsEarned: totalPoints,
-        paymentType,
-        paidAmount,
-        changeAmount,
-        staff: staffName,
-        dateTime: now
-      });
-      sessionStorage.setItem("currentBuyerPoints", newPoints);
-      alert(`✅ Transaction Recorded\nTotal: Rp ${totalAmount.toLocaleString()}\nPoints Earned: ${totalPoints}\nChange: Rp ${changeAmount.toLocaleString()}`);
-      newTransaction();
-    }
+  if (paymentType === "CASH") {
+    const paid = parseInt(document.getElementById("cashPaid").value) || 0;
+    const change = paid > 0 ? Math.max(0, paid - totalAmount) : 0;
+    document.getElementById("changeAmount").textContent = change.toLocaleString();
+  }
 
-    function newTransaction() {
-      document.getElementById("buyerInfo").classList.add("hidden");
-      document.getElementById("searchBuyer").value = "";
-      ["copyarenQty","chocobaraQty","camericanoQty"].forEach(id => document.getElementById(id).value = 0);
-      ["copyarenSize","chocobaraSize","camericanoSize"].forEach(id => document.getElementById(id).selectedIndex = 0);
-      document.getElementById("totalAmount").textContent = "0";
-      document.getElementById("totalPoints").textContent = "0";
-      document.getElementById("selectedPayment").textContent = "None";
-      document.getElementById("cashInputSection").classList.add("hidden");
-      document.getElementById("cashPaid").value = "";
-      document.getElementById("changeAmount").textContent = "0";
-      paymentType = null;
-    }
+  return { totalAmount, totalPoints, items: [
+    ...(cQ>0 ? [{name:'Copyaren', qty:cQ, size:cS, price: prices.copyaren[cS]}] : []),
+    ...(bQ>0 ? [{name:'Chocobara', qty:bQ, size:bS, price: prices.chocobara[bS]}] : []),
+    ...(aQ>0 ? [{name:'Camericano', qty:aQ, size:aS, price: prices.camericano[aS]}] : [])
+  ]};
+}
 
-    function goToRedeem() {
-      if (!currentBuyerId) return alert("Search a buyer first!");
-      window.location.href = "redeem.html";
-    }
+function submitTransaction() {
+  if (!currentBuyerId) return alert("Search for a buyer first!");
+  if (!paymentType) return alert("Select payment type!");
 
-    function logoutStaff() {
-      sessionStorage.clear();
-      window.location.href = "index.html";
-    }
-  </script>
+  const { totalAmount, totalPoints, items } = calculateTotal();
+  if (totalAmount === 0) return alert("Please select items!");
+
+  const confirmPurchase = confirm(`Confirm transaction?\nTotal: Rp ${totalAmount.toLocaleString()}\nPayment: ${paymentType}`);
+  if (!confirmPurchase) return;
+
+  const paidAmount = paymentType === "CASH" ? parseInt(document.getElementById("cashPaid").value) || 0 : totalAmount;
+  const changeAmount = paymentType === "CASH" ? Math.max(0, paidAmount - totalAmount) : 0;
+  const newPoints = currentBuyerPoints + totalPoints;
+  const staffName = sessionStorage.getItem("staffName") || "Unknown";
+  const now = new Date().toLocaleString("en-GB");
+
+  // Update buyer points
+  db.ref("buyers/" + currentBuyerId).update({ points: newPoints });
+
+  // Push transaction including items
+  db.ref("transactions").push({
+    buyerId: currentBuyerId,
+    buyerName: currentBuyerName,
+    totalAmount,
+    totalPointsEarned: totalPoints,
+    paymentType,
+    paidAmount,
+    changeAmount,
+    staff: staffName,
+    dateTime: now,
+    items
+  });
+
+  sessionStorage.setItem("currentBuyerPoints", newPoints);
+
+  alert(`✅ Transaction Recorded\nTotal: Rp ${totalAmount.toLocaleString()}\nPoints Earned: ${totalPoints}\nChange: Rp ${changeAmount.toLocaleString()}`);
+  newTransaction();
+}
+
+function newTransaction() {
+  document.getElementById("buyerInfo").classList.add("hidden");
+  document.getElementById("searchBuyer").value = "";
+  ["copyarenQty","chocobaraQty","camericanoQty"].forEach(id => document.getElementById(id).value = 0);
+  ["copyarenSize","chocobaraSize","camericanoSize"].forEach(id => document.getElementById(id).selectedIndex = 0);
+  document.getElementById("totalAmount").textContent = "0";
+  document.getElementById("totalPoints").textContent = "0";
+  document.getElementById("selectedPayment").textContent = "None";
+  document.getElementById("cashInputSection").classList.add("hidden");
+  document.getElementById("cashPaid").value = "";
+  document.getElementById("changeAmount").textContent = "0";
+  paymentType = null;
+}
+
+function goToRedeem() {
+  if (!currentBuyerId) return alert("Search a buyer first!");
+  window.location.href = "redeem.html";
+}
+
+function logoutStaff() {
+  sessionStorage.clear();
+  window.location.href = "index.html";
+}
+</script>
 </body>
 </html>
