@@ -231,6 +231,18 @@
       alert(`✅ Redemption successful! Remaining points: ${newPoints}`);
     }
 
+    function resetRedeemInputs() {
+  document.getElementById("copyarenQty").value = 0;
+  document.getElementById("copyarenSize").selectedIndex = 0;
+
+  document.getElementById("chocobaraQty").value = 0;
+  document.getElementById("chocobaraSize").selectedIndex = 0;
+
+  document.getElementById("camericanoQty").value = 0;
+  document.getElementById("camericanoSize").selectedIndex = 0;
+}
+
+
     function backToTransaction() {
       window.location.href = "transaction.html";
     }
