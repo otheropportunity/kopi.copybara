@@ -119,20 +119,32 @@
     let totalPoints = 0;
     let redeemData = {};
 
-    document.addEventListener("DOMContentLoaded", () => {
-      if (!currentUser) {
-        alert("No member found. Please log in first.");
-        window.location.href = "index.html";
-        return;
-      }
-
-      document.getElementById("welcomeName").innerText = "Welcome, " + currentUser.name;
-
-      db.ref("members/" + currentUser.phone).once("value").then(snapshot => {
-        const data = snapshot.val();
-        totalPoints = data && data.points ? data.points : 0;
+    // ✅ Load member info (from transaction.html via sessionStorage)
+    const currentMemberData = JSON.parse(sessionStorage.getItem("currentMember") || "{}");
+    if (currentMemberData.name) {
+      currentUser = {
+        name: currentMemberData.name,
+        phone: currentMemberData.phone || currentMemberData.name,
+        password: currentMemberData.password
+      };
+      totalPoints = currentMemberData.points || 0;
+      document.addEventListener("DOMContentLoaded", () => {
+        document.getElementById("welcomeName").innerText = "Welcome, " + currentUser.name;
         document.getElementById("userPoints").innerText = totalPoints;
       });
+    } else if (!currentUser) {
+      alert("⚠️ No member found. Please log in or go back to Transaction page.");
+      window.location.href = "transaction.html";
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      if (currentUser && !totalPoints) {
+        db.ref("members/" + currentUser.phone).once("value").then(snapshot => {
+          const data = snapshot.val();
+          totalPoints = data && data.points ? data.points : 0;
+          document.getElementById("userPoints").innerText = totalPoints;
+        });
+      }
     });
 
     function showSummary() {
@@ -221,89 +233,6 @@
     function backToTransaction() {
       window.location.href = "transaction.html";
     }
-
-    // ✅ --- REDEEM VALIDATION & LOCK ENHANCEMENT ---
-
-// Get current member info stored from transaction.html
-const currentMemberData = JSON.parse(sessionStorage.getItem("currentMember"));
-
-if (currentMemberData) {
-  // Autofill buyer name if available
-  const buyerField = document.getElementById("buyerName");
-  if (buyerField && !buyerField.value) buyerField.value = currentMemberData.name;
-} else {
-  console.warn("⚠️ No current member found from transaction.html session.");
-}
-
-// Hook to redeem button (keep your existing event listener, this complements it)
-const redeemBtn = document.getElementById("redeemBtn");
-if (redeemBtn) {
-  redeemBtn.addEventListener("click", async (e) => {
-    try {
-      const staffPass = document.getElementById("staffPass")?.value.trim();
-      const memberPass = document.getElementById("memberPass")?.value.trim();
-      const redeemPoints = parseInt(document.getElementById("redeemPoints")?.value) || 0;
-
-      if (staffPass !== "230420") {
-        alert("❌ Invalid staff password!");
-        return;
-      }
-
-      if (!currentMemberData) {
-        alert("⚠️ No member found. Please search in Transaction page first!");
-        return;
-      }
-
-      if (memberPass !== currentMemberData.password) {
-        alert("❌ Invalid member password!");
-        return;
-      }
-
-      const buyerName = currentMemberData.name;
-      const memberRef = firebase.database().ref("masterPoints/" + buyerName);
-      const snapshot = await memberRef.once("value");
-      let currentPoints = snapshot.val()?.points || 0;
-
-      if (redeemPoints <= 0) {
-        alert("Please enter points to redeem.");
-        return;
-      }
-
-      if (redeemPoints > currentPoints) {
-        alert("❌ Not enough points to redeem!");
-        return;
-      }
-
-      const newPoints = currentPoints - redeemPoints;
-
-      // Update the database
-      await memberRef.update({ points: newPoints });
-
-      // Record redemption history
-      const historyRef = firebase.database().ref("transactionHistory").push();
-      historyRef.set({
-        date: new Date().toLocaleString(),
-        buyerName,
-        items: `Redeem ${redeemPoints} pts`,
-        total: "Rp 0",
-        payment: "REDEEM",
-        paid: "Rp 0",
-        change: "Rp 0",
-        earned: "-",
-        redeemed: `${redeemPoints} pts`,
-        remainingPoints: newPoints,
-        staff: document.getElementById("staffName")?.value || "Unknown"
-      });
-
-      alert(`✅ Redeem successful! Remaining points: ${newPoints}`);
-      document.getElementById("redeemPoints").value = "";
-
-    } catch (err) {
-      console.error("Error in redeem logic:", err);
-      alert("Error processing redemption, please retry.");
-    }
-  });
-}
   </script>
 </body>
 </html>
