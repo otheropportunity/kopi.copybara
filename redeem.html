@@ -3,239 +3,155 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kopi Copybara - Redeem Points</title>
+  <title>Coffee Loyalty - Redeem Points</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
-      authDomain: "kopi-copybara.firebaseapp.com",
-      databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "kopi-copybara",
-      storageBucket: "kopi-copybara.appspot.com",
-      messagingSenderId: "729875984861",
-      appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
-    };
-    firebase.initializeApp(firebaseConfig);
-  </script>
-
   <style>
     body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
-    .card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 450px; margin: 40px auto; }
-    .hidden { display: none; }
+    .card { background: white; border-radius: 12px; padding: 24px; max-width: 500px; margin: 50px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    select, input[type="number"], input[type="text"] { border: 1px solid #ccc; border-radius: 6px; padding: 6px; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">🎁 Redeem Points</h1>
+<div class="card">
+  <h1 class="text-2xl font-bold text-center text-amber-800 mb-2">☕ Redeem Points</h1>
+  <h2 class="text-lg font-semibold text-center mb-4">Staff: <span id="staffNameDisplay" class="text-amber-700"></span></h2>
 
-    <div class="text-center mb-4">
-      <h2 id="welcomeName" class="text-lg font-semibold text-amber-900"></h2>
-      <p>Total Points: <span id="userPoints" class="font-bold text-green-700">0</span></p>
-    </div>
-
-    <div class="mb-4">
-      <h3 class="font-semibold text-amber-800 mb-2">Select Items</h3>
-
-      <!-- Copyaren -->
-      <div class="mb-2">
-        <label>Copyaren</label>
-        <div class="flex gap-2 mb-1">
-          <input type="number" id="copyarenQty" min="0" value="0" class="w-16 border text-center rounded">
-          <select id="copyarenSize" class="flex-grow border rounded p-1">
-            <option value="10">Glass 175ml (10 pts)</option>
-            <option value="20">Pocket 250ml (20 pts)</option>
-            <option value="40">500ml (40 pts)</option>
-            <option value="80">1L (80 pts)</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Chocobara -->
-      <div class="mb-2">
-        <label>Chocobara</label>
-        <div class="flex gap-2 mb-1">
-          <input type="number" id="chocobaraQty" min="0" value="0" class="w-16 border text-center rounded">
-          <select id="chocobaraSize" class="flex-grow border rounded p-1">
-            <option value="12">Glass 175ml (12 pts)</option>
-            <option value="24">Pocket 250ml (24 pts)</option>
-            <option value="48">500ml (48 pts)</option>
-            <option value="95">1L (95 pts)</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Camericano -->
-      <div class="mb-2">
-        <label>Camericano</label>
-        <div class="flex gap-2 mb-1">
-          <input type="number" id="camericanoQty" min="0" value="0" class="w-16 border text-center rounded">
-          <select id="camericanoSize" class="flex-grow border rounded p-1">
-            <option value="8">Glass 175ml (8 pts)</option>
-            <option value="15">Pocket 250ml (15 pts)</option>
-            <option value="30">500ml (30 pts)</option>
-            <option value="60">1L (60 pts)</option>
-          </select>
-        </div>
-      </div>
-    </div>
-
-    <button onclick="showSummary()" class="w-full bg-green-700 text-white p-2 rounded mb-3">Redeem Selected</button>
-    <button onclick="backToTransaction()" class="w-full bg-gray-400 text-white p-2 rounded">← Back</button>
+  <!-- Search Buyer -->
+  <div class="mb-4">
+    <input id="searchBuyer" class="w-full border rounded p-2 mb-2" placeholder="Search Buyer (Name / Phone)" />
+    <button onclick="searchBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg hover:bg-green-800 transition">Search Buyer</button>
   </div>
 
-  <!-- Summary Modal -->
-  <div id="summaryModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
-    <div class="bg-white rounded p-6 w-80">
-      <h3 class="text-lg font-bold text-amber-800 mb-2 text-center">Confirm Redemption</h3>
-      <div id="summaryList" class="text-sm mb-3"></div>
-      <p class="text-center">Total Points: <span id="summaryTotal" class="font-bold text-green-700"></span></p>
-      <div class="flex gap-2 mt-4">
-        <button onclick="cancelSummary()" class="flex-1 bg-gray-300 p-2 rounded">Cancel</button>
-        <button onclick="askConfirmation()" class="flex-1 bg-green-700 text-white p-2 rounded">Next</button>
-      </div>
+  <!-- Buyer Info -->
+  <div id="buyerInfo" class="hidden border-t pt-3">
+    <p><strong>Name:</strong> <span id="buyerFoundName"></span></p>
+    <p><strong>Points Available:</strong> <span id="buyerFoundPoints"></span></p>
+
+    <h3 class="font-semibold mb-2 text-amber-800 mt-4">Select Reward Item:</h3>
+    <div class="mb-3">
+      <label class="block mb-1">Reward Item:</label>
+      <select id="rewardItem" class="w-full p-2 border rounded">
+        <option value="Copyaren - 500ml" data-points="40">Copyaren - 500ml (40 pts)</option>
+        <option value="Chocobara - Glass 175ml" data-points="12">Chocobara - Glass 175ml (12 pts)</option>
+        <option value="Camericano - Glass 175ml" data-points="8">Camericano - Glass 175ml (8 pts)</option>
+      </select>
     </div>
+
+    <div class="mb-3">
+      <label class="block mb-1">Quantity:</label>
+      <input type="number" id="rewardQty" min="1" value="1" class="w-full p-2 border rounded" />
+    </div>
+
+    <button onclick="submitRedeem()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-3 hover:bg-amber-800">Redeem</button>
   </div>
 
-  <!-- Password Confirmation Modal -->
-  <div id="passwordModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
-    <div class="bg-white rounded p-6 w-80">
-      <h3 class="text-lg font-bold text-center text-amber-800 mb-3">🔐 Authorization Required</h3>
-      <p class="text-sm text-center mb-2">Enter Staff Master Password and Member Password to confirm.</p>
-      <input type="password" id="staffPassword" placeholder="Staff Master Password" class="w-full border p-2 rounded mb-2">
-      <input type="password" id="memberPassword" placeholder="Member Password" class="w-full border p-2 rounded mb-4">
-      <div class="flex gap-2">
-        <button onclick="cancelPassword()" class="flex-1 bg-gray-300 p-2 rounded">Cancel</button>
-        <button onclick="confirmRedemption()" class="flex-1 bg-green-700 text-white p-2 rounded">Confirm</button>
-      </div>
-    </div>
+  <div class="mt-6 space-y-3">
+    <button onclick="window.location.href='transaction.html'" class="w-full bg-yellow-600 text-white p-2 rounded-lg hover:bg-yellow-700">Go to Transaction</button>
+    <button onclick="window.location.href='history.html'" class="w-full bg-yellow-600 text-white p-2 rounded-lg hover:bg-yellow-700">View History</button>
+    <button onclick="logoutStaff()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg hover:bg-gray-400">Logout</button>
   </div>
+</div>
 
-  <script>
-    const db = firebase.database();
-    const STAFF_MASTER_PASSWORD = "230420";
-    let buyerId, buyerName, buyerPoints = 0, buyerPassword = "";
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
+  authDomain: "kopi-copybara.firebaseapp.com",
+  databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "kopi-copybara",
+  storageBucket: "kopi-copybara.appspot.com",
+  messagingSenderId: "729875984861",
+  appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-    document.addEventListener("DOMContentLoaded", () => {
-      buyerId = sessionStorage.getItem("currentBuyerId");
-      buyerName = sessionStorage.getItem("currentBuyerName");
+let currentBuyerId = null;
+let currentBuyerName = "";
+let currentBuyerPoints = 0;
 
-      if (!buyerId) {
-        alert("Session expired. Returning to transaction page.");
-        window.location.href = "transaction.html";
-        return;
+document.addEventListener("DOMContentLoaded", () => {
+  const staffName = sessionStorage.getItem("staffName") || "Unknown";
+  document.getElementById("staffNameDisplay").textContent = staffName;
+});
+
+function searchBuyer() {
+  const query = document.getElementById("searchBuyer").value.trim().toLowerCase();
+  if (!query) return alert("Enter buyer name or phone!");
+  db.ref("buyers").once("value").then(snapshot => {
+    let found = false;
+    snapshot.forEach(child => {
+      const data = child.val();
+      if ((data.name && data.name.toLowerCase().includes(query)) ||
+          (data.phone && data.phone.includes(query))) {
+        found = true;
+        currentBuyerId = child.key;
+        currentBuyerName = data.name;
+        currentBuyerPoints = data.points || 0;
+
+        // Prevent simultaneous transaction
+        if (data.isBuying) return alert("Buyer is currently making a transaction. Please wait.");
+
+        document.getElementById("buyerFoundName").innerText = currentBuyerName;
+        document.getElementById("buyerFoundPoints").innerText = currentBuyerPoints;
+        document.getElementById("buyerInfo").classList.remove("hidden");
       }
-
-      // 🔹 Load buyer data from Firebase
-      db.ref("buyers/" + buyerId).once("value").then(snap => {
-        if (snap.exists()) {
-          const data = snap.val();
-          buyerPoints = data.points || 0;
-          buyerPassword = data.password || "";
-          document.getElementById("welcomeName").textContent = `Welcome, ${buyerName}!`;
-          document.getElementById("userPoints").textContent = buyerPoints;
-        }
-      });
     });
+    if (!found) alert("Buyer not found!");
+  });
+}
 
-    function calculateTotalPoints() {
-      return (
-        document.getElementById("copyarenQty").value * document.getElementById("copyarenSize").value +
-        document.getElementById("chocobaraQty").value * document.getElementById("chocobaraSize").value +
-        document.getElementById("camericanoQty").value * document.getElementById("camericanoSize").value
-      );
+function submitRedeem() {
+  if (!currentBuyerId) return alert("Search for a buyer first!");
+
+  const item = document.getElementById("rewardItem");
+  const rewardName = item.value;
+  const rewardPoints = parseInt(item.selectedOptions[0].dataset.points);
+  const qty = parseInt(document.getElementById("rewardQty").value) || 1;
+  const totalPointsNeeded = rewardPoints * qty;
+
+  if (currentBuyerPoints < totalPointsNeeded) {
+    return alert(`Not enough points! Buyer has ${currentBuyerPoints} pts.`);
+  }
+
+  const confirmRedeem = confirm(`Confirm redeem: ${qty} × ${rewardName} for ${totalPointsNeeded} pts?`);
+  if (!confirmRedeem) return;
+
+  const now = new Date().toLocaleString("en-GB");
+  const staffName = sessionStorage.getItem("staffName") || "Unknown";
+
+  // Atomically deduct points from master
+  const memberRef = db.ref("members/" + currentBuyerName);
+  memberRef.transaction(member => {
+    if (member) {
+      if ((member.points || 0) < totalPointsNeeded) return; // abort if not enough points
+      member.points -= totalPointsNeeded;
     }
+    return member;
+  }).then(result => {
+    if (!result.committed) return alert("Transaction failed. Please try again.");
 
-    function showSummary() {
-      const totalCost = calculateTotalPoints();
-      if (totalCost <= 0) return alert("Select at least one item to redeem.");
+    // Record redemption
+    db.ref("redemptions").push({
+      buyerId: currentBuyerId,
+      buyerName: currentBuyerName,
+      itemName: rewardName,
+      pointsUsed: totalPointsNeeded,
+      qty,
+      staff: staffName,
+      dateTime: now
+    }).then(() => {
+      alert("Redemption successful!");
+      window.location.reload();
+    });
+  });
+}
 
-      const items = [];
-      const add = (id, name, selId) => {
-        const qty = document.getElementById(id).value;
-        if (qty > 0) {
-          const size = document.getElementById(selId);
-          items.push({ name: name, sizeText: size.options[size.selectedIndex].text, qty: qty });
-        }
-      };
-      add("copyarenQty", "Copyaren", "copyarenSize");
-      add("chocobaraQty", "Chocobara", "chocobaraSize");
-      add("camericanoQty", "Camericano", "camericanoSize");
-
-      sessionStorage.setItem("redeemItems", JSON.stringify(items));
-      sessionStorage.setItem("redeemTotal", totalCost);
-
-      document.getElementById("summaryList").innerHTML = items.map(i => `<li>${i.name} - ${i.sizeText} × ${i.qty}</li>`).join("");
-      document.getElementById("summaryTotal").textContent = totalCost;
-      document.getElementById("summaryModal").classList.remove("hidden");
-    }
-
-    function cancelSummary() {
-      document.getElementById("summaryModal").classList.add("hidden");
-    }
-
-    function askConfirmation() {
-      document.getElementById("summaryModal").classList.add("hidden");
-      const totalCost = sessionStorage.getItem("redeemTotal");
-      const msg = `You want to redeem ${totalCost} points.\nYour total points: ${buyerPoints}.\nAre you sure?`;
-      if (confirm(msg)) document.getElementById("passwordModal").classList.remove("hidden");
-    }
-
-    function cancelPassword() {
-      document.getElementById("passwordModal").classList.add("hidden");
-    }
-
-    function confirmRedemption() {
-      const staffPass = document.getElementById("staffPassword").value.trim();
-      const memberPass = document.getElementById("memberPassword").value.trim();
-      const totalCost = parseInt(sessionStorage.getItem("redeemTotal") || 0);
-
-      if (staffPass !== STAFF_MASTER_PASSWORD) return alert("❌ Incorrect staff master password!");
-      if (memberPass !== buyerPassword) return alert("❌ Incorrect member password!");
-      if (buyerPoints < totalCost) return alert("❌ Not enough points!");
-
-      const newPoints = buyerPoints - totalCost;
-      const items = JSON.parse(sessionStorage.getItem("redeemItems")) || [];
-      const itemNames = items.map(i => `${i.name} - ${i.sizeText} × ${i.qty}`).join(", ");
-
-      const redemption = {
-        buyerId,
-        buyerName,
-        dateTime: new Date().toLocaleString("en-GB"),
-        totalPointsUsed: totalCost,
-        itemName: itemNames,
-        staff: sessionStorage.getItem("staffName") || "Unknown",
-        type: "Redeem"
-      };
-
-      // Update database
-      db.ref("buyers/" + buyerId).update({ points: newPoints });
-      db.ref("redemptions/" + Date.now()).set(redemption);
-      db.ref("transactions").push({
-        buyerId,
-        buyerName,
-        totalPointsUsed: totalCost,
-        totalAmount: 0,
-        totalPointsEarned: 0,
-        items: itemNames,
-        paymentType: "REDEEM",
-        staff: sessionStorage.getItem("staffName") || "Unknown",
-        dateTime: new Date().toLocaleString("en-GB")
-      });
-
-      document.getElementById("userPoints").textContent = newPoints;
-      buyerPoints = newPoints;
-      sessionStorage.setItem("currentBuyerPoints", newPoints);
-
-      document.getElementById("passwordModal").classList.add("hidden");
-      alert(`✅ Redemption successful! Remaining points: ${newPoints}`);
-    }
-
-    function backToTransaction() {
-      window.location.href = "transaction.html";
-    }
-  </script>
+function logoutStaff() {
+  sessionStorage.clear();
+  window.location.href = "index.html";
+}
+</script>
 </body>
 </html>
