@@ -9,6 +9,7 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
   <script>
+    // === Firebase Config ===
     const firebaseConfig = {
       apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
       authDomain: "kopi-copybara.firebaseapp.com",
@@ -128,6 +129,10 @@
         return;
       }
 
+      loadBuyerData();
+    });
+
+    function loadBuyerData() {
       db.ref("buyers/" + buyerId).once("value").then(snap => {
         if (snap.exists()) {
           const data = snap.val();
@@ -137,13 +142,13 @@
           document.getElementById("userPoints").textContent = buyerPoints;
         }
       });
-    });
+    }
 
     function calculateTotalPoints() {
       return (
-        (parseInt(document.getElementById("copyarenQty").value) || 0) * parseInt(document.getElementById("copyarenSize").value) +
-        (parseInt(document.getElementById("chocobaraQty").value) || 0) * parseInt(document.getElementById("chocobaraSize").value) +
-        (parseInt(document.getElementById("camericanoQty").value) || 0) * parseInt(document.getElementById("camericanoSize").value)
+        document.getElementById("copyarenQty").value * document.getElementById("copyarenSize").value +
+        document.getElementById("chocobaraQty").value * document.getElementById("chocobaraSize").value +
+        document.getElementById("camericanoQty").value * document.getElementById("camericanoSize").value
       );
     }
 
@@ -153,7 +158,7 @@
 
       const items = [];
       const add = (id, name, selId) => {
-        const qty = parseInt(document.getElementById(id).value) || 0;
+        const qty = document.getElementById(id).value;
         if (qty > 0) {
           const size = document.getElementById(selId);
           items.push({ name: name, sizeText: size.options[size.selectedIndex].text, qty: qty });
@@ -177,7 +182,7 @@
 
     function askConfirmation() {
       document.getElementById("summaryModal").classList.add("hidden");
-      const totalCost = parseInt(sessionStorage.getItem("redeemTotal") || 0);
+      const totalCost = sessionStorage.getItem("redeemTotal");
       const msg = `You want to redeem ${totalCost} points.\nYour total points: ${buyerPoints}.\nAre you sure?`;
       if (confirm(msg)) document.getElementById("passwordModal").classList.remove("hidden");
     }
@@ -198,6 +203,7 @@
       const newPoints = buyerPoints - totalCost;
       const items = JSON.parse(sessionStorage.getItem("redeemItems")) || [];
       const itemNames = items.map(i => `${i.name} - ${i.sizeText} × ${i.qty}`).join(", ");
+      const staffName = sessionStorage.getItem("staffName") || "Unknown";
 
       const redemption = {
         buyerId,
@@ -205,46 +211,36 @@
         dateTime: new Date().toLocaleString("en-GB"),
         totalPointsUsed: totalCost,
         itemName: itemNames,
-        staff: sessionStorage.getItem("staffName") || "Unknown",
+        staff: staffName,
+        remainingPoints: newPoints,
         type: "Redeem"
       };
 
-      // Update buyer points
-      db.ref("buyers/" + buyerId).update({ points: newPoints });
+      // Update buyer points first
+      db.ref("buyers/" + buyerId).update({ points: newPoints }).then(() => {
+        // Save redemption + transaction
+        db.ref("redemptions/" + Date.now()).set(redemption);
+        db.ref("transactions").push({
+          buyerId,
+          buyerName,
+          totalPointsUsed: totalCost,
+          totalAmount: 0,
+          totalPointsEarned: 0,
+          items: itemNames,
+          paymentType: "REDEEM",
+          remainingPoints: newPoints,
+          staff: staffName,
+          dateTime: new Date().toLocaleString("en-GB")
+        });
 
-      // Record redemption
-      db.ref("redemptions/" + Date.now()).set(redemption);
+        // Update local
+        buyerPoints = newPoints;
+        sessionStorage.setItem("currentBuyerPoints", newPoints);
+        document.getElementById("userPoints").textContent = newPoints;
 
-      // Record transaction with remainingPoints
-      db.ref("transactions").push({
-        buyerId,
-        buyerName,
-        totalPointsUsed: totalCost,
-        totalAmount: 0,
-        totalPointsEarned: 0,
-        items: itemNames,
-        paymentType: "REDEEM",
-        staff: sessionStorage.getItem("staffName") || "Unknown",
-        dateTime: new Date().toLocaleString("en-GB"),
-        remainingPoints: newPoints   // ✅ Correct remaining points
+        document.getElementById("passwordModal").classList.add("hidden");
+        alert(`✅ Redemption successful! Remaining points: ${newPoints}`);
       });
-
-      // Update UI
-      buyerPoints = newPoints;
-      document.getElementById("userPoints").textContent = newPoints;
-
-      // Reset inputs to 0
-      document.getElementById("copyarenQty").value = 0;
-      document.getElementById("chocobaraQty").value = 0;
-      document.getElementById("camericanoQty").value = 0;
-      document.getElementById("copyarenSize").selectedIndex = 0;
-      document.getElementById("chocobaraSize").selectedIndex = 0;
-      document.getElementById("camericanoSize").selectedIndex = 0;
-      document.getElementById("staffPassword").value = "";
-      document.getElementById("memberPassword").value = "";
-
-      document.getElementById("passwordModal").classList.add("hidden");
-      alert(`✅ Redemption successful! Remaining points: ${newPoints}`);
     }
 
     function backToTransaction() {
