@@ -128,7 +128,6 @@
         return;
       }
 
-      // Load buyer data from Firebase
       db.ref("buyers/" + buyerId).once("value").then(snap => {
         if (snap.exists()) {
           const data = snap.val();
@@ -142,9 +141,9 @@
 
     function calculateTotalPoints() {
       return (
-        (parseInt(document.getElementById("copyarenQty").value)||0) * parseInt(document.getElementById("copyarenSize").value) +
-        (parseInt(document.getElementById("chocobaraQty").value)||0) * parseInt(document.getElementById("chocobaraSize").value) +
-        (parseInt(document.getElementById("camericanoQty").value)||0) * parseInt(document.getElementById("camericanoSize").value)
+        (parseInt(document.getElementById("copyarenQty").value) || 0) * parseInt(document.getElementById("copyarenSize").value) +
+        (parseInt(document.getElementById("chocobaraQty").value) || 0) * parseInt(document.getElementById("chocobaraSize").value) +
+        (parseInt(document.getElementById("camericanoQty").value) || 0) * parseInt(document.getElementById("camericanoSize").value)
       );
     }
 
@@ -154,7 +153,7 @@
 
       const items = [];
       const add = (id, name, selId) => {
-        const qty = parseInt(document.getElementById(id).value)||0;
+        const qty = parseInt(document.getElementById(id).value) || 0;
         if (qty > 0) {
           const size = document.getElementById(selId);
           items.push({ name: name, sizeText: size.options[size.selectedIndex].text, qty: qty });
@@ -187,17 +186,6 @@
       document.getElementById("passwordModal").classList.add("hidden");
     }
 
-    function resetRedeemInputs() {
-      document.getElementById("copyarenQty").value = 0;
-      document.getElementById("copyarenSize").selectedIndex = 0;
-
-      document.getElementById("chocobaraQty").value = 0;
-      document.getElementById("chocobaraSize").selectedIndex = 0;
-
-      document.getElementById("camericanoQty").value = 0;
-      document.getElementById("camericanoSize").selectedIndex = 0;
-    }
-
     function confirmRedemption() {
       const staffPass = document.getElementById("staffPassword").value.trim();
       const memberPass = document.getElementById("memberPassword").value.trim();
@@ -221,9 +209,13 @@
         type: "Redeem"
       };
 
-      // Update Firebase
+      // Update buyer points
       db.ref("buyers/" + buyerId).update({ points: newPoints });
+
+      // Record redemption
       db.ref("redemptions/" + Date.now()).set(redemption);
+
+      // Record transaction with remainingPoints
       db.ref("transactions").push({
         buyerId,
         buyerName,
@@ -233,18 +225,24 @@
         items: itemNames,
         paymentType: "REDEEM",
         staff: sessionStorage.getItem("staffName") || "Unknown",
-        dateTime: new Date().toLocaleString("en-GB")
+        dateTime: new Date().toLocaleString("en-GB"),
+        remainingPoints: newPoints   // ✅ Correct remaining points
       });
 
-      // Update UI & session
+      // Update UI
       buyerPoints = newPoints;
-      sessionStorage.setItem("currentBuyerPoints", newPoints);
       document.getElementById("userPoints").textContent = newPoints;
 
-      // Reset redeem inputs
-      resetRedeemInputs();
+      // Reset inputs to 0
+      document.getElementById("copyarenQty").value = 0;
+      document.getElementById("chocobaraQty").value = 0;
+      document.getElementById("camericanoQty").value = 0;
+      document.getElementById("copyarenSize").selectedIndex = 0;
+      document.getElementById("chocobaraSize").selectedIndex = 0;
+      document.getElementById("camericanoSize").selectedIndex = 0;
+      document.getElementById("staffPassword").value = "";
+      document.getElementById("memberPassword").value = "";
 
-      // Hide modal
       document.getElementById("passwordModal").classList.add("hidden");
       alert(`✅ Redemption successful! Remaining points: ${newPoints}`);
     }
