@@ -142,7 +142,7 @@
       // Load buyer master point live from DB
       const buyerSnap = await db.ref("buyers/" + currentBuyerId).once("value");
       const buyerData = buyerSnap.val() || {};
-      totalPoints = buyerData.masterPoint || buyerData.points || 0;
+      totalPoints = buyerData.masterPoints || buyerData.points || 0;
 
       document.getElementById("welcomeName").innerText = "Welcome, " + currentBuyer.name;
       document.getElementById("userPoints").innerText = totalPoints;
@@ -224,7 +224,7 @@
       const newTotal = Math.max(0, totalPoints - totalCost);
       const timestamp = new Date().toISOString().replace("T"," ").split(".")[0];
 
-      await db.ref("buyers/" + currentBuyerId).update({ masterPoint: newTotal });
+      await db.ref("buyers/" + currentBuyerId).update({ masterPoints: newTotal });
       await db.ref("redemptions").push({
         buyerId: currentBuyerId,
         buyerName: currentBuyer.name,
