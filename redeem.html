@@ -147,19 +147,26 @@
       document.getElementById("welcomeName").innerText = "Welcome, " + currentBuyer.name;
       document.getElementById("userPoints").innerText = totalPoints;
 
-      // Load purchase summary
-      const snap = await db.ref("transactions").orderByChild("buyerId").equalTo(currentBuyerId).once("value");
-      snap.forEach(child => {
-        const data = child.val();
-        ["copyaren", "chocobara", "camericano"].forEach(drink => {
-          const qty = parseInt(data[`${drink}Qty`]) || 0;
-          const size = data[`${drink}Size`] || "";
-          if (qty > 0 && size) {
-            purchaseSummary[size] = (purchaseSummary[size] || 0) + qty;
-          }
+      // ✅ Try to load purchase summary from session first (fast)
+      const lastSummary = JSON.parse(sessionStorage.getItem("purchaseSummary") || "{}");
+      if (Object.keys(lastSummary).length > 0) {
+        purchaseSummary = lastSummary;
+      } else {
+        // Fallback - load from Firebase transactions
+        const snap = await db.ref("transactions").orderByChild("buyerId").equalTo(currentBuyerId).once("value");
+        snap.forEach(child => {
+          const data = child.val();
+          ["copyaren", "chocobara", "camericano"].forEach(drink => {
+            const qty = parseInt(data[`${drink}Qty`]) || 0;
+            const size = data[`${drink}Size`] || "";
+            if (qty > 0 && size) {
+              purchaseSummary[size] = (purchaseSummary[size] || 0) + qty;
+            }
+          });
         });
-      });
+      }
 
+      // ✅ Update UI
       document.getElementById("sumGlass").innerText = purchaseSummary["glass"] || 0;
       document.getElementById("sumPocket").innerText = purchaseSummary["pocket"] || 0;
       document.getElementById("sum500").innerText = purchaseSummary["500ml"] || 0;
