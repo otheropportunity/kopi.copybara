@@ -38,7 +38,7 @@
     </div>
 
     <div class="mb-4">
-      <h3 class="font-semibold text-amber-800 mb-2">Select Items</h3>
+      <h3 class="font-semibold text-amber-800 mb-2">Select Items to Redeem</h3>
 
       <!-- Copyaren -->
       <div class="mb-2">
@@ -46,10 +46,10 @@
         <div class="flex gap-2 mb-1">
           <input type="number" id="copyarenQty" min="0" value="0" class="w-16 border text-center rounded">
           <select id="copyarenSize" class="flex-grow border rounded p-1">
-            <option value="10">Glass 175ml (10 pts)</option>
-            <option value="20">Pocket 250ml (20 pts)</option>
-            <option value="40">500ml (40 pts)</option>
-            <option value="80">1L (80 pts)</option>
+            <option value="glass">Glass 175ml (10 pts)</option>
+            <option value="pocket">Pocket 250ml (20 pts)</option>
+            <option value="500ml">500ml (40 pts)</option>
+            <option value="1l">1L (80 pts)</option>
           </select>
         </div>
       </div>
@@ -60,10 +60,10 @@
         <div class="flex gap-2 mb-1">
           <input type="number" id="chocobaraQty" min="0" value="0" class="w-16 border text-center rounded">
           <select id="chocobaraSize" class="flex-grow border rounded p-1">
-            <option value="12">Glass 175ml (12 pts)</option>
-            <option value="24">Pocket 250ml (24 pts)</option>
-            <option value="48">500ml (48 pts)</option>
-            <option value="95">1L (95 pts)</option>
+            <option value="glass">Glass 175ml (12 pts)</option>
+            <option value="pocket">Pocket 250ml (24 pts)</option>
+            <option value="500ml">500ml (48 pts)</option>
+            <option value="1l">1L (95 pts)</option>
           </select>
         </div>
       </div>
@@ -74,10 +74,10 @@
         <div class="flex gap-2 mb-1">
           <input type="number" id="camericanoQty" min="0" value="0" class="w-16 border text-center rounded">
           <select id="camericanoSize" class="flex-grow border rounded p-1">
-            <option value="8">Glass 175ml (8 pts)</option>
-            <option value="15">Pocket 250ml (15 pts)</option>
-            <option value="30">500ml (30 pts)</option>
-            <option value="60">1L (60 pts)</option>
+            <option value="glass">Glass 175ml (8 pts)</option>
+            <option value="pocket">Pocket 250ml (15 pts)</option>
+            <option value="500ml">500ml (30 pts)</option>
+            <option value="1l">1L (60 pts)</option>
           </select>
         </div>
       </div>
@@ -100,7 +100,7 @@
     </div>
   </div>
 
-  <!-- Password Confirmation Modal -->
+  <!-- Password Modal -->
   <div id="passwordModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
     <div class="bg-white rounded p-6 w-80">
       <h3 class="text-lg font-bold text-center text-amber-800 mb-3">🔐 Authorization Required</h3>
@@ -115,111 +115,97 @@
   </div>
 
   <script>
-    let currentUser = JSON.parse(localStorage.getItem("currentUser")) || null;
-    let totalPoints = 0;
+    let currentBuyer = JSON.parse(sessionStorage.getItem("currentMember") || "{}");
+    let currentBuyerId = sessionStorage.getItem("currentBuyerId");
+    let totalPoints = currentBuyer.masterPoint || currentBuyer.points || 0;
     let redeemData = {};
+    let purchaseSummary = {};
 
-    // ✅ Load member info (from transaction.html via sessionStorage)
-    const currentMemberData = JSON.parse(sessionStorage.getItem("currentMember") || "{}");
-    if (currentMemberData.name) {
-      currentUser = {
-        name: currentMemberData.name,
-        phone: currentMemberData.phone || currentMemberData.name,
-        password: currentMemberData.password
-      };
-      totalPoints = currentMemberData.points || 0;
-      document.addEventListener("DOMContentLoaded", () => {
-        document.getElementById("welcomeName").innerText = "Welcome, " + currentUser.name;
-        document.getElementById("userPoints").innerText = totalPoints;
-      });
-    } else if (!currentUser) {
-      alert("⚠️ No member found. Please log in or go back to Transaction page.");
-      window.location.href = "transaction.html";
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      if (currentUser && !totalPoints) {
-        db.ref("members/" + currentUser.phone).once("value").then(snapshot => {
-          const data = snapshot.val();
-          totalPoints = data && data.points ? data.points : 0;
-          document.getElementById("userPoints").innerText = totalPoints;
-        });
+    document.addEventListener("DOMContentLoaded", async () => {
+      if (!currentBuyer.name) {
+        alert("⚠️ No member found. Please go back to Transaction page.");
+        window.location.href = "transaction.html";
+        return;
       }
+
+      document.getElementById("welcomeName").innerText = "Welcome, " + currentBuyer.name;
+      document.getElementById("userPoints").innerText = totalPoints;
+
+      // Load transaction summary to calculate eligibility
+      const snap = await db.ref("transactions").orderByChild("buyerId").equalTo(currentBuyerId).once("value");
+      snap.forEach(child => {
+        const data = child.val();
+        ["copyaren","chocobara","camericano"].forEach(drink => {
+          const qty = parseInt(data[`${drink}Qty`]) || 0;
+          const size = data[`${drink}Size`] || "";
+          if (qty > 0 && size) {
+            purchaseSummary[size] = (purchaseSummary[size] || 0) + qty;
+          }
+        });
+      });
     });
+
+    // Redemption rule logic
+    function canRedeemFor(size) {
+      if (purchaseSummary["1l"] >= 1) return true; // 1L unlocks all
+      if (size === "glass") return purchaseSummary["glass"] >= 10;
+      if (size === "pocket") return purchaseSummary["pocket"] >= 10 || purchaseSummary["1l"] >= 1;
+      if (size === "500ml") return purchaseSummary["500ml"] >= 10 || purchaseSummary["1l"] >= 1;
+      if (size === "1l") return purchaseSummary["1l"] >= 10;
+      return false;
+    }
 
     function showSummary() {
       const items = [
-        { name: "Copyaren", qty: parseInt(copyarenQty.value), cost: parseInt(copyarenSize.value) },
-        { name: "Chocobara", qty: parseInt(chocobaraQty.value), cost: parseInt(chocobaraSize.value) },
-        { name: "Camericano", qty: parseInt(camericanoQty.value), cost: parseInt(camericanoSize.value) },
+        { name: "Copyaren", qty: parseInt(copyarenQty.value), size: copyarenSize.value, pts: {glass:10,pocket:20,"500ml":40,"1l":80} },
+        { name: "Chocobara", qty: parseInt(chocobaraQty.value), size: chocobaraSize.value, pts: {glass:12,pocket:24,"500ml":48,"1l":95} },
+        { name: "Camericano", qty: parseInt(camericanoQty.value), size: camericanoSize.value, pts: {glass:8,pocket:15,"500ml":30,"1l":60} },
       ];
 
       let summaryHTML = "";
       let total = 0;
       redeemData = {};
 
-      items.forEach(i => {
+      for (const i of items) {
         if (i.qty > 0) {
-          const subtotal = i.qty * i.cost;
-          summaryHTML += `<p>${i.name} × ${i.qty} = ${subtotal} pts</p>`;
+          if (!canRedeemFor(i.size)) {
+            alert(`❌ You are not eligible to redeem ${i.name} (${i.size.toUpperCase()}).`);
+            return;
+          }
+          const subtotal = i.qty * i.pts[i.size];
+          summaryHTML += `<p>${i.name} (${i.size}) × ${i.qty} = ${subtotal} pts</p>`;
           total += subtotal;
-          redeemData[i.name] = { qty: i.qty, points: subtotal };
+          redeemData[i.name] = { qty: i.qty, size: i.size, points: subtotal };
         }
-      });
-
-      if (total === 0) {
-        alert("Please select at least 1 item to redeem.");
-        return;
       }
 
-      if (total > totalPoints) {
-        alert("Not enough points!");
-        return;
-      }
+      if (total === 0) return alert("Select at least 1 item to redeem.");
+      if (total > totalPoints) return alert("Not enough points!");
 
       document.getElementById("summaryList").innerHTML = summaryHTML;
       document.getElementById("summaryTotal").innerText = total;
       document.getElementById("summaryModal").classList.remove("hidden");
     }
 
-    function cancelSummary() {
-      document.getElementById("summaryModal").classList.add("hidden");
-    }
+    function cancelSummary(){ document.getElementById("summaryModal").classList.add("hidden"); }
+    function askConfirmation(){ document.getElementById("summaryModal").classList.add("hidden"); document.getElementById("passwordModal").classList.remove("hidden"); }
+    function cancelPassword(){ document.getElementById("passwordModal").classList.add("hidden"); }
 
-    function askConfirmation() {
-      document.getElementById("summaryModal").classList.add("hidden");
-      document.getElementById("passwordModal").classList.remove("hidden");
-    }
-
-    function cancelPassword() {
-      document.getElementById("passwordModal").classList.add("hidden");
-    }
-
-    function confirmRedemption() {
+    async function confirmRedemption(){
       const staffPass = document.getElementById("staffPassword").value.trim();
       const memberPass = document.getElementById("memberPassword").value.trim();
 
-      if (staffPass !== "230420") {
-        alert("❌ Invalid staff master password!");
-        return;
-      }
+      if(staffPass !== "230420"){ alert("❌ Invalid staff master password!"); return; }
+      if(memberPass !== currentBuyer.password){ alert("❌ Invalid member password!"); return; }
 
-      if (memberPass !== currentUser.password) {
-        alert("❌ Invalid member password!");
-        return;
-      }
-
-      const totalCost = Object.values(redeemData).reduce((a, b) => a + b.points, 0);
+      const totalCost = Object.values(redeemData).reduce((a,b)=>a+b.points,0);
       const newTotal = totalPoints - totalCost;
+      const timestamp = new Date().toISOString().replace("T"," ").split(".")[0];
 
-      db.ref("members/" + currentUser.phone).update({
-        points: newTotal < 0 ? 0 : newTotal
-      });
-
-      const timestamp = new Date().toISOString().replace("T", " ").split(".")[0];
-      db.ref("redemptions/" + currentUser.phone + "/" + Date.now()).set({
-        name: currentUser.name,
-        phone: currentUser.phone,
+      await db.ref("buyers/" + currentBuyerId).update({ masterPoint: newTotal < 0 ? 0 : newTotal });
+      await db.ref("redemptions").push({
+        buyerId: currentBuyerId,
+        buyerName: currentBuyer.name,
         redeemed: redeemData,
         totalPointsUsed: totalCost,
         remainingPoints: newTotal < 0 ? 0 : newTotal,
@@ -230,9 +216,7 @@
       window.location.href = "history.html";
     }
 
-    function backToTransaction() {
-      window.location.href = "transaction.html";
-    }
+    function backToTransaction(){ window.location.href = "transaction.html"; }
   </script>
 </body>
 </html>
