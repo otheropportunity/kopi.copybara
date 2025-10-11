@@ -128,7 +128,7 @@
   <script>
     let currentBuyer = JSON.parse(sessionStorage.getItem("currentMember") || "{}");
     let currentBuyerId = sessionStorage.getItem("currentBuyerId");
-    let totalPoints = currentBuyer.masterPoint || currentBuyer.points || 0;
+    let totalPoints = 0;
     let redeemData = {};
     let purchaseSummary = { glass: 0, pocket: 0, "500ml": 0, "1l": 0 };
 
@@ -139,10 +139,15 @@
         return;
       }
 
+      // Load buyer master point live from DB
+      const buyerSnap = await db.ref("buyers/" + currentBuyerId).once("value");
+      const buyerData = buyerSnap.val() || {};
+      totalPoints = buyerData.masterPoint || buyerData.points || 0;
+
       document.getElementById("welcomeName").innerText = "Welcome, " + currentBuyer.name;
       document.getElementById("userPoints").innerText = totalPoints;
 
-      // Load all transactions for this buyer
+      // Load purchase summary
       const snap = await db.ref("transactions").orderByChild("buyerId").equalTo(currentBuyerId).once("value");
       snap.forEach(child => {
         const data = child.val();
@@ -155,7 +160,6 @@
         });
       });
 
-      // Update display summary
       document.getElementById("sumGlass").innerText = purchaseSummary["glass"] || 0;
       document.getElementById("sumPocket").innerText = purchaseSummary["pocket"] || 0;
       document.getElementById("sum500").innerText = purchaseSummary["500ml"] || 0;
@@ -163,8 +167,9 @@
       document.getElementById("purchaseSummaryCard").classList.remove("hidden");
     });
 
+    // ✅ Rule checker (glass-pocket-500ml-1l)
     function canRedeemFor(size) {
-      if (purchaseSummary["1l"] >= 1) return true;
+      if (purchaseSummary["1l"] >= 1) return true; // 1L unlocks all
       if (size === "glass") return purchaseSummary["glass"] >= 10;
       if (size === "pocket") return purchaseSummary["pocket"] >= 10 || purchaseSummary["1l"] >= 1;
       if (size === "500ml") return purchaseSummary["500ml"] >= 10 || purchaseSummary["1l"] >= 1;
@@ -216,16 +221,16 @@
       if(memberPass !== currentBuyer.password){ alert("❌ Invalid member password!"); return; }
 
       const totalCost = Object.values(redeemData).reduce((a,b)=>a+b.points,0);
-      const newTotal = totalPoints - totalCost;
+      const newTotal = Math.max(0, totalPoints - totalCost);
       const timestamp = new Date().toISOString().replace("T"," ").split(".")[0];
 
-      await db.ref("buyers/" + currentBuyerId).update({ masterPoint: newTotal < 0 ? 0 : newTotal });
+      await db.ref("buyers/" + currentBuyerId).update({ masterPoint: newTotal });
       await db.ref("redemptions").push({
         buyerId: currentBuyerId,
         buyerName: currentBuyer.name,
         redeemed: redeemData,
         totalPointsUsed: totalCost,
-        remainingPoints: newTotal < 0 ? 0 : newTotal,
+        remainingPoints: newTotal,
         time: timestamp
       });
 
