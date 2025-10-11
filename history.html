@@ -79,8 +79,15 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 let historyRows = [];
-let buyerPointsMaster = {}; // 🟢 Master points from "buyers"
+let buyerPointsMaster = {};
 let sortByName = false;
+
+// Point conversion table per item size
+const pointTable = {
+  copyaren: {glass:1, pocket:2, "500ml":4, "1l":8},
+  chocobara: {glass:1, pocket:2, "500ml":4, "1l":8},
+  camericano: {glass:1, pocket:2, "500ml":4, "1l":8}
+};
 
 document.addEventListener("DOMContentLoaded", async () => {
   const staffName = sessionStorage.getItem("staffName");
@@ -91,7 +98,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   document.getElementById("staffNameDisplay").textContent = "Logged in as: " + staffName;
 
-  await loadBuyerPoints();  // ✅ load master points first
+  await loadBuyerPoints();
   loadHistory();
 
   document.getElementById("sortButton").addEventListener("click", () => {
@@ -105,14 +112,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 async function loadBuyerPoints() {
   const snap = await db.ref("buyers").once("value");
-  buyerPointsMaster = {};
   snap.forEach(c => {
     const b = c.val();
-    if (b && b.name) buyerPointsMaster[b.name] = b.points || 0;
+    if (b && b.name) buyerPointsMaster[b.name] = b.masterPoint || b.points || 0;
   });
 }
 
-// 🟡 Load all transaction + redemption history
+// 🟤 Load Transactions + Redemptions
 async function loadHistory() {
   const table = document.getElementById("historyTable");
   table.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">Loading...</td></tr>`;
@@ -124,148 +130,132 @@ async function loadHistory() {
 
   let rawRows = [];
 
-  // 🟤 Transactions
+  // 🟢 Transactions
   transactionsSnap.forEach(child => {
     const t = child.val();
     if (!t || !t.buyerName) return;
-    const items = [
-      t.copyarenQty > 0 ? `Copyaren ${t.copyarenSize || ""}ml (${t.copyarenQty})` : "",
-      t.chocobaraQty > 0 ? `Chocobara ${t.chocobaraSize || ""}ml (${t.chocobaraQty})` : "",
-      t.camericanoQty > 0 ? `Camericano ${t.camericanoSize || ""}ml (${t.camericanoQty})` : ""
-    ].filter(Boolean).join(", ") || (t.itemName || "-");
+
+    const itemsList = [];
+    let earned = 0;
+
+    [["copyaren","Copyaren"],["chocobara","Chocobara"],["camericano","Camericano"]].forEach(([key,label])=>{
+      const qty = parseInt(t[`${key}Qty`]) || 0;
+      const size = (t[`${key}Size`] || "").toLowerCase();
+      if(qty>0 && size){
+        itemsList.push(`${label} ${size} (${qty})`);
+        const pointValue = pointTable[key]?.[size] || 0;
+        earned += qty * pointValue;
+      }
+    });
 
     rawRows.push({
       dateTime: t.dateTime,
       buyerName: t.buyerName,
-      items,
+      items: itemsList.join(", ") || "-",
       totalAmount: t.totalAmount || 0,
       paymentType: t.paymentType || "-",
       paidAmount: t.paidAmount || 0,
       changeAmount: t.changeAmount || 0,
-      pointsEarned: t.totalPointsEarned || 0,
+      pointsEarned: earned,
       redeemed: 0,
       staff: t.staff || "-"
     });
   });
 
-  // 🟤 Redemptions
+  // 🔸 Redemptions
   redemptionsSnap.forEach(child => {
     const r = child.val();
     if (!r) return;
-    const buyer = r.buyerName || r.name || "Unknown";
-    const itemName = r.itemName || r.reward || "-";
-    const pointsUsed = r.pointsUsed || r.totalPointsUsed || 0;
-    const date = r.dateTime || r.timestamp || "-";
-    const staff = r.staff || "-";
+    const buyer = r.buyerName || "Unknown";
+    const redeemed = r.totalPointsUsed || r.pointsUsed || 0;
+    const items = Object.entries(r.redeemed || {}).map(([k,v]) => `${k} ${v.size} (${v.qty})`).join(", ");
 
     rawRows.push({
-      dateTime: date,
+      dateTime: r.time || r.dateTime || "-",
       buyerName: buyer,
-      items: itemName,
+      items: items || "Redeemed items",
       totalAmount: "-",
       paymentType: "REDEEM",
       paidAmount: "-",
       changeAmount: "-",
       pointsEarned: 0,
-      redeemed: pointsUsed,
-      staff: staff
+      redeemed: redeemed,
+      staff: "-"
     });
   });
 
-  // 🔹 Sort by date ascending for accurate point tracking
-  rawRows.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+  // 🔹 Sort ascending by time for accumulation
+  rawRows.sort((a,b)=> new Date(a.dateTime) - new Date(b.dateTime));
 
-  // 🔹 Compute cumulative remaining points per buyer
-  const buyerPointsMap = {};
-  historyRows = rawRows.map(r => {
-    const prevPoints = buyerPointsMap[r.buyerName] || 0;
-    const newPoints = prevPoints + (r.pointsEarned || 0) - (r.redeemed || 0);
-    buyerPointsMap[r.buyerName] = newPoints;
-    return {
-      ...r,
-      remainingPoints: newPoints
-    };
+  const buyerPoints = {};
+  historyRows = rawRows.map(r=>{
+    const prev = buyerPoints[r.buyerName] || 0;
+    const total = prev + r.pointsEarned - r.redeemed;
+    buyerPoints[r.buyerName] = total;
+    return {...r, remainingPoints: total};
   });
 
-  // 🔹 Replace final remainingPoints with Master Points (latest from buyers)
-  historyRows = historyRows.map(r => ({
+  // Override final balance with master
+  historyRows = historyRows.map(r=>({
     ...r,
     remainingPoints: buyerPointsMaster[r.buyerName] ?? r.remainingPoints
   }));
 
-  // 🔹 Update total points in header if available
+  // Update header
   const currentBuyerName = sessionStorage.getItem("currentBuyerName");
-  if (currentBuyerName && buyerPointsMaster[currentBuyerName] !== undefined) {
+  if(currentBuyerName && buyerPointsMaster[currentBuyerName]!==undefined){
     document.getElementById("totalPointsDisplay").textContent =
-      `⭐ Current Points: ${buyerPointsMaster[currentBuyerName]} pts`;
+      `⭐ ${currentBuyerName}: ${buyerPointsMaster[currentBuyerName]} pts`;
   } else {
     document.getElementById("totalPointsDisplay").textContent = "⭐ Points Loaded";
   }
 
-  // 🔹 Sort final display by date descending
-  historyRows.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
+  // Sort desc for display
+  historyRows.sort((a,b)=> new Date(b.dateTime)-new Date(a.dateTime));
   renderHistory();
 }
 
-function renderHistory() {
-  const table = document.getElementById("historyTable");
-  if (historyRows.length === 0) {
-    table.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">No data found.</td></tr>`;
+function renderHistory(){
+  const table=document.getElementById("historyTable");
+  if(historyRows.length===0){
+    table.innerHTML=`<tr><td colspan="11" class="text-center py-4 text-gray-500">No data.</td></tr>`;
     return;
   }
 
-  if (sortByName) {
-    historyRows.sort((a, b) => (a.buyerName || "").localeCompare(b.buyerName || ""));
-  }
+  if(sortByName) historyRows.sort((a,b)=>(a.buyerName||"").localeCompare(b.buyerName||""));
 
-  table.innerHTML = historyRows.map(r => `
+  table.innerHTML=historyRows.map(r=>`
     <tr class="hover:bg-amber-50">
       <td>${r.dateTime}</td>
       <td>${r.buyerName}</td>
       <td>${r.items}</td>
-      <td>${r.totalAmount !== "-" ? "Rp " + Number(r.totalAmount).toLocaleString() : "-"}</td>
+      <td>${r.totalAmount!=="-"?"Rp "+Number(r.totalAmount).toLocaleString():"-"}</td>
       <td>${r.paymentType}</td>
-      <td>${r.paidAmount !== "-" ? "Rp " + Number(r.paidAmount).toLocaleString() : "-"}</td>
-      <td>${r.changeAmount !== "-" ? "Rp " + Number(r.changeAmount).toLocaleString() : "-"}</td>
-      <td>${r.pointsEarned || "-"}</td>
-      <td>${r.redeemed ? r.redeemed + " pts" : "-"}</td>
+      <td>${r.paidAmount!=="-"?"Rp "+Number(r.paidAmount).toLocaleString():"-"}</td>
+      <td>${r.changeAmount!=="-"?"Rp "+Number(r.changeAmount).toLocaleString():"-"}</td>
+      <td>${r.pointsEarned||"-"}</td>
+      <td>${r.redeemed?r.redeemed+" pts":"-"}</td>
       <td class="font-semibold text-amber-700">${r.remainingPoints}</td>
       <td>${r.staff}</td>
-    </tr>
-  `).join("");
+    </tr>`).join("");
 }
 
-// ✅ Excel Export
-function downloadExcel() {
-  if (historyRows.length === 0) {
-    alert("No data to export!");
-    return;
-  }
-
-  const wsData = [
-    ["Date/Time", "Buyer Name", "Items", "Total (Rp)", "Payment", "Paid (Rp)", "Change (Rp)", "Points Earned", "Redeemed (pts)", "Remaining Points", "Staff"],
-    ...historyRows.map(r => [
-      r.dateTime,
-      r.buyerName,
-      r.items,
-      r.totalAmount === "-" ? "" : r.totalAmount,
-      r.paymentType,
-      r.paidAmount === "-" ? "" : r.paidAmount,
-      r.changeAmount === "-" ? "" : r.changeAmount,
-      r.pointsEarned || "",
-      r.redeemed || "",
-      r.remainingPoints,
-      r.staff
+// ✅ Excel export
+function downloadExcel(){
+  if(historyRows.length===0){alert("No data to export!");return;}
+  const wsData=[["Date/Time","Buyer Name","Items","Total (Rp)","Payment","Paid (Rp)","Change (Rp)","Points Earned","Redeemed (pts)","Remaining Points","Staff"],
+    ...historyRows.map(r=>[
+      r.dateTime,r.buyerName,r.items,r.totalAmount==="-"?"":r.totalAmount,
+      r.paymentType,r.paidAmount==="-"?"":r.paidAmount,
+      r.changeAmount==="-"?"":r.changeAmount,
+      r.pointsEarned||"",r.redeemed||"",r.remainingPoints,r.staff
     ])
   ];
-
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
-  XLSX.utils.book_append_sheet(wb, ws, "History");
-
-  const now = new Date();
-  const fileName = `Coffee_History_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}.xlsx`;
-  XLSX.writeFile(wb, fileName);
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  XLSX.utils.book_append_sheet(wb,ws,"History");
+  const now=new Date();
+  XLSX.writeFile(wb,`Coffee_History_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}.xlsx`);
 }
 </script>
 </body>
