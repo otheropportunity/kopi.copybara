@@ -28,7 +28,9 @@
       ⬅ Back
     </button>
 
-    <div class="flex items-center gap-2 flex-wrap">
+    <div class="flex items-center gap-4 flex-wrap">
+      <span id="totalPointsDisplay" class="font-bold text-amber-800 text-lg">Loading points...</span>
+
       <button id="sortButton" class="bg-amber-600 text-white p-2 px-4 rounded-lg hover:bg-amber-700 transition">
         🔤 Sort by Name
       </button>
@@ -77,9 +79,10 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 let historyRows = [];
+let buyerPointsMaster = {}; // 🟢 Master points from "buyers"
 let sortByName = false;
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const staffName = sessionStorage.getItem("staffName");
   if (!staffName || staffName === "null") {
     alert("Session expired or not logged in. Please login again.");
@@ -88,6 +91,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   document.getElementById("staffNameDisplay").textContent = "Logged in as: " + staffName;
 
+  await loadBuyerPoints();  // ✅ load master points first
   loadHistory();
 
   document.getElementById("sortButton").addEventListener("click", () => {
@@ -99,6 +103,16 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("downloadExcel").addEventListener("click", downloadExcel);
 });
 
+async function loadBuyerPoints() {
+  const snap = await db.ref("buyers").once("value");
+  buyerPointsMaster = {};
+  snap.forEach(c => {
+    const b = c.val();
+    if (b && b.name) buyerPointsMaster[b.name] = b.points || 0;
+  });
+}
+
+// 🟡 Load all transaction + redemption history
 async function loadHistory() {
   const table = document.getElementById("historyTable");
   table.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">Loading...</td></tr>`;
@@ -158,10 +172,10 @@ async function loadHistory() {
     });
   });
 
-  // 🔹 Sort by date ascending to calculate cumulative points
+  // 🔹 Sort by date ascending for accurate point tracking
   rawRows.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
 
-  // 🔹 Compute Remaining Points per buyer
+  // 🔹 Compute cumulative remaining points per buyer
   const buyerPointsMap = {};
   historyRows = rawRows.map(r => {
     const prevPoints = buyerPointsMap[r.buyerName] || 0;
@@ -172,6 +186,21 @@ async function loadHistory() {
       remainingPoints: newPoints
     };
   });
+
+  // 🔹 Replace final remainingPoints with Master Points (latest from buyers)
+  historyRows = historyRows.map(r => ({
+    ...r,
+    remainingPoints: buyerPointsMaster[r.buyerName] ?? r.remainingPoints
+  }));
+
+  // 🔹 Update total points in header if available
+  const currentBuyerName = sessionStorage.getItem("currentBuyerName");
+  if (currentBuyerName && buyerPointsMaster[currentBuyerName] !== undefined) {
+    document.getElementById("totalPointsDisplay").textContent =
+      `⭐ Current Points: ${buyerPointsMaster[currentBuyerName]} pts`;
+  } else {
+    document.getElementById("totalPointsDisplay").textContent = "⭐ Points Loaded";
+  }
 
   // 🔹 Sort final display by date descending
   historyRows.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
@@ -200,7 +229,7 @@ function renderHistory() {
       <td>${r.changeAmount !== "-" ? "Rp " + Number(r.changeAmount).toLocaleString() : "-"}</td>
       <td>${r.pointsEarned || "-"}</td>
       <td>${r.redeemed ? r.redeemed + " pts" : "-"}</td>
-      <td>${r.remainingPoints}</td>
+      <td class="font-semibold text-amber-700">${r.remainingPoints}</td>
       <td>${r.staff}</td>
     </tr>
   `).join("");
