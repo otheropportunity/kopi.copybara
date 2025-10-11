@@ -103,7 +103,6 @@
       <button onclick="logoutStaff()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg hover:bg-gray-400">Logout</button>
     </div>
   </div>
-
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
@@ -190,33 +189,48 @@ function calculateTotal(){
     document.getElementById("changeAmount").textContent=change.toLocaleString();
   }
 
+  // === Size classification (Glass, Pocket, 500ml, 1L)
   const purchaseSummary = { glass: 0, pocket: 0, ml500: 0, l1: 0 };
+
   function classifySize(size, qty) {
     if (size === "175") purchaseSummary.glass += qty;
     else if (size === "250") purchaseSummary.pocket += qty;
     else if (size === "500") purchaseSummary.ml500 += qty;
     else if (size === "1000") purchaseSummary.l1 += qty;
   }
+
   classifySize(cS, cQ);
   classifySize(bS, bQ);
   classifySize(aS, aQ);
 
+  // Save to session for redeem.html
   sessionStorage.setItem("purchaseSummary", JSON.stringify(purchaseSummary));
+
   return { totalAmount, totalPoints, cQ, cS, bQ, bS, aQ, aS };
 }
 
-// === Submit Transaction (fixed version) ===
+// === Submit Transaction (with masterPoints update) ===
 function submitTransaction(){
   if(!currentBuyerId) return alert("Search for a buyer first!");
   if(!paymentType) return alert("Select payment type!");
+
   const submitBtn=document.getElementById("submitBtn");
   submitBtn.disabled=true; submitBtn.textContent="Processing...";
 
   db.ref("system/redemptionLock").once("value").then(lockSnap=>{
-    if(lockSnap.val()) { alert("❌ Cannot process transaction while redemption is in progress!"); submitBtn.disabled=false; submitBtn.textContent="Submit Transaction"; return; }
+    if(lockSnap.val()) {
+      alert("❌ Cannot process transaction while redemption is in progress!");
+      submitBtn.disabled=false; submitBtn.textContent="Submit Transaction";
+      return;
+    }
 
     const { totalAmount,totalPoints,cQ,cS,bQ,bS,aQ,aS } = calculateTotal();
-    if(totalAmount===0) { alert("Please select items!"); submitBtn.disabled=false; submitBtn.textContent="Submit Transaction"; return; }
+    if(totalAmount===0) {
+      alert("Please select items!");
+      submitBtn.disabled=false; submitBtn.textContent="Submit Transaction";
+      return;
+    }
+
     const confirmPurchase = confirm(`Confirm transaction?\nTotal: Rp ${totalAmount.toLocaleString()}\nPayment: ${paymentType}`);
     if(!confirmPurchase){ submitBtn.disabled=false; submitBtn.textContent="Submit Transaction"; return; }
 
@@ -248,7 +262,7 @@ function submitTransaction(){
           dateTime: now
         }).then(()=>{
           alert("✅ Transaction successful!");
-          // Reset
+          // Reset form
           document.getElementById("copyarenQty").value=0;
           document.getElementById("chocobaraQty").value=0;
           document.getElementById("camericanoQty").value=0;
@@ -260,7 +274,7 @@ function submitTransaction(){
           document.getElementById("cashInputSection").classList.add("hidden");
           paymentType=null;
 
-          // Update buyer points
+          // Update displayed buyer points
           document.getElementById("buyerFoundPoints").innerText=newMaster;
           currentBuyerPoints=newMaster;
           const updatedMember=JSON.parse(sessionStorage.getItem("currentMember")||"{}");
@@ -288,5 +302,6 @@ function goToRedeem(){
 
 function logoutStaff(){ sessionStorage.clear(); window.location.href="index.html"; }
 </script>
+
 </body>
 </html>
