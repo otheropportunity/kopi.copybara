@@ -12,7 +12,7 @@
     body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
     .card { background: white; border-radius: 12px; padding: 24px; max-width: 500px; margin: 50px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
     select, input[type="number"], input[type="text"] { border: 1px solid #ccc; border-radius: 6px; padding: 6px; }
-  </style>
+  </style>---
 </head>
 <body>
   <div class="card">
@@ -220,26 +220,51 @@ function submitTransaction(){
 
     const paidAmount=paymentType==="CASH"?parseInt(document.getElementById("cashPaid").value)||0:totalAmount;
     const changeAmount=paymentType==="CASH"?Math.max(0,paidAmount-totalAmount):0;
-    const newPoints = currentBuyerPoints + totalPoints;
     const staffName=sessionStorage.getItem("staffName")||"Unknown";
     const now=new Date().toLocaleString("en-GB");
 
-    db.ref("buyers/"+currentBuyerId).update({ points: newPoints });
-    db.ref("transactions").push({
-      buyerId: currentBuyerId,
-      buyerName: currentBuyerName,
-      copyarenQty: parseInt(document.getElementById("copyarenQty").value)||0,
-      copyarenSize: document.getElementById("copyarenSize").value,
-      chocobaraQty: parseInt(document.getElementById("chocobaraQty").value)||0,
-      chocobaraSize: document.getElementById("chocobaraSize").value,
-      camericanoQty: parseInt(document.getElementById("camericanoQty").value)||0,
-      camericanoSize: document.getElementById("camericanoSize").value,
-      totalAmount, paymentType, paidAmount, changeAmount,
-      totalPointsEarned: totalPoints,
-      staff: staffName, dateTime: now
-    }).then(()=>{ alert("✅ Transaction successful!"); window.location.reload(); });
+const staffName = sessionStorage.getItem("staffName") || "Unknown";
+const now = new Date().toLocaleString("en-GB");
+
+// 🔹 Use 'masterPoint' as the true accumulated points field
+const buyerRef = db.ref("buyers/" + currentBuyerId);
+
+buyerRef.once("value").then(snap => {
+  const buyerData = snap.val() || {};
+  const currentMasterPoint = buyerData.masterPoint || 0;
+
+  const newMasterPoint = currentMasterPoint + totalPoints;  // add points to master
+  const newTransactionPoint = totalPoints;                  // points earned this transaction only
+
+  // 🔸 Update buyer record
+  buyerRef.update({
+    masterPoint: newMasterPoint,
+    lastTransactionPoint: newTransactionPoint
   });
-}
+
+  // 🔸 Log transaction with new fields
+  db.ref("transactions").push({
+    buyerId: currentBuyerId,
+    buyerName: currentBuyerName,
+    copyarenQty: parseInt(document.getElementById("copyarenQty").value) || 0,
+    copyarenSize: document.getElementById("copyarenSize").value,
+    chocobaraQty: parseInt(document.getElementById("chocobaraQty").value) || 0,
+    chocobaraSize: document.getElementById("chocobaraSize").value,
+    camericanoQty: parseInt(document.getElementById("camericanoQty").value) || 0,
+    camericanoSize: document.getElementById("camericanoSize").value,
+    totalAmount,
+    paymentType,
+    paidAmount,
+    changeAmount,
+    totalPointsEarned: newTransactionPoint,
+    updatedMasterPoint: newMasterPoint, // 👈 For history tracking
+    staff: staffName,
+    dateTime: now
+  }).then(() => {
+    alert("✅ Transaction successful!");
+    window.location.reload();
+  });
+});
 
 // ✅ Save buyer info and points before going to redeem.html
 function goToRedeem() {
