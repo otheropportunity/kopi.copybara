@@ -128,6 +128,7 @@ const prices = {
   camericano: {175: 8000, 250: 15000, 500: 30000, 1000: 60000}
 };
 
+// === Staff session check ===
 document.addEventListener("DOMContentLoaded", () => {
   const staffName = sessionStorage.getItem("staffName");
   if (!staffName) { alert("Session expired or not logged in."); window.location.href="index.html"; return; }
@@ -189,23 +190,22 @@ function calculateTotal(){
     document.getElementById("changeAmount").textContent=change.toLocaleString();
   }
 
-  // ✅ Create and store purchase summary for redeem.html
+  // ✅ Save summary for redeem rules
   const purchaseSummary = { glass: 0, pocket: 0, ml500: 0, l1: 0 };
-
   function classifySize(size, qty) {
     if (size === "175") purchaseSummary.glass += qty;
     else if (size === "250") purchaseSummary.pocket += qty;
     else if (size === "500") purchaseSummary.ml500 += qty;
     else if (size === "1000") purchaseSummary.l1 += qty;
   }
-
   classifySize(cS, cQ);
   classifySize(bS, bQ);
   classifySize(aS, aQ);
 
   sessionStorage.setItem("purchaseSummary", JSON.stringify(purchaseSummary));
 
-  return { totalAmount, totalPoints };
+  // Return values for submit
+  return { totalAmount, totalPoints, cQ, cS, bQ, bS, aQ, aS };
 }
 
 // === Submit Transaction ===
@@ -216,7 +216,7 @@ function submitTransaction(){
   db.ref("system/redemptionLock").once("value").then(lockSnap=>{
     if(lockSnap.val()) { alert("❌ Cannot process transaction while redemption is in progress!"); return; }
 
-    const { totalAmount,totalPoints } = calculateTotal();
+    const { totalAmount,totalPoints,cQ,cS,bQ,bS,aQ,aS } = calculateTotal();
     if(totalAmount===0) return alert("Please select items!");
     const confirmPurchase = confirm(`Confirm transaction?\nTotal: Rp ${totalAmount.toLocaleString()}\nPayment: ${paymentType}`);
     if(!confirmPurchase) return;
@@ -257,6 +257,9 @@ function submitTransaction(){
       }).then(() => {
         alert("✅ Transaction successful!");
         window.location.reload();
+      }).catch(err=>{
+        console.error("Transaction failed:", err);
+        alert("❌ Transaction failed: " + err.message);
       });
     });
   });
