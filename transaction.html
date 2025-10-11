@@ -169,6 +169,7 @@ function searchBuyer(){
   });
 }
 
+// === Calculate Total + Save Size Summary ===
 function calculateTotal(){
   const cQ=parseInt(document.getElementById("copyarenQty").value)||0;
   const cS=document.getElementById("copyarenSize").value;
@@ -176,16 +177,35 @@ function calculateTotal(){
   const bS=document.getElementById("chocobaraSize").value;
   const aQ=parseInt(document.getElementById("camericanoQty").value)||0;
   const aS=document.getElementById("camericanoSize").value;
+
   const totalAmount=cQ*prices.copyaren[cS]+bQ*prices.chocobara[bS]+aQ*prices.camericano[aS];
   const totalPoints=cQ+bQ+aQ;
   document.getElementById("totalAmount").textContent=totalAmount.toLocaleString();
   document.getElementById("totalPoints").textContent=totalPoints;
+
   if(paymentType==="CASH"){
     const paid=parseInt(document.getElementById("cashPaid").value)||0;
     const change=paid>0?Math.max(0,paid-totalAmount):0;
     document.getElementById("changeAmount").textContent=change.toLocaleString();
   }
-  return { totalAmount,totalPoints };
+
+  // ✅ Create and store purchase summary for redeem.html
+  const purchaseSummary = { glass: 0, pocket: 0, ml500: 0, l1: 0 };
+
+  function classifySize(size, qty) {
+    if (size === "175") purchaseSummary.glass += qty;
+    else if (size === "250") purchaseSummary.pocket += qty;
+    else if (size === "500") purchaseSummary.ml500 += qty;
+    else if (size === "1000") purchaseSummary.l1 += qty;
+  }
+
+  classifySize(cS, cQ);
+  classifySize(bS, bQ);
+  classifySize(aS, aQ);
+
+  sessionStorage.setItem("purchaseSummary", JSON.stringify(purchaseSummary));
+
+  return { totalAmount, totalPoints };
 }
 
 // === Submit Transaction ===
@@ -220,12 +240,12 @@ function submitTransaction(){
       db.ref("transactions").push({
         buyerId: currentBuyerId,
         buyerName: currentBuyerName,
-        copyarenQty: parseInt(document.getElementById("copyarenQty").value) || 0,
-        copyarenSize: document.getElementById("copyarenSize").value,
-        chocobaraQty: parseInt(document.getElementById("chocobaraQty").value) || 0,
-        chocobaraSize: document.getElementById("chocobaraSize").value,
-        camericanoQty: parseInt(document.getElementById("camericanoQty").value) || 0,
-        camericanoSize: document.getElementById("camericanoSize").value,
+        copyarenQty: cQ,
+        copyarenSize: cS,
+        chocobaraQty: bQ,
+        chocobaraSize: bS,
+        camericanoQty: aQ,
+        camericanoSize: aS,
         totalAmount,
         paymentType,
         paidAmount,
