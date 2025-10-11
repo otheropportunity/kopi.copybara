@@ -37,6 +37,17 @@
       <p>Total Points: <span id="userPoints" class="font-bold text-green-700">0</span></p>
     </div>
 
+    <!-- Purchase Summary -->
+    <div id="purchaseSummaryCard" class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 hidden">
+      <h3 class="font-semibold text-amber-800 text-center mb-2">☕ Purchase Summary</h3>
+      <div class="grid grid-cols-2 gap-1 text-sm text-center">
+        <p>Glass: <span id="sumGlass" class="font-bold text-amber-900">0</span></p>
+        <p>Pocket: <span id="sumPocket" class="font-bold text-amber-900">0</span></p>
+        <p>500ml: <span id="sum500" class="font-bold text-amber-900">0</span></p>
+        <p>1L: <span id="sum1L" class="font-bold text-amber-900">0</span></p>
+      </div>
+    </div>
+
     <div class="mb-4">
       <h3 class="font-semibold text-amber-800 mb-2">Select Items to Redeem</h3>
 
@@ -119,7 +130,7 @@
     let currentBuyerId = sessionStorage.getItem("currentBuyerId");
     let totalPoints = currentBuyer.masterPoint || currentBuyer.points || 0;
     let redeemData = {};
-    let purchaseSummary = {};
+    let purchaseSummary = { glass: 0, pocket: 0, "500ml": 0, "1l": 0 };
 
     document.addEventListener("DOMContentLoaded", async () => {
       if (!currentBuyer.name) {
@@ -131,11 +142,11 @@
       document.getElementById("welcomeName").innerText = "Welcome, " + currentBuyer.name;
       document.getElementById("userPoints").innerText = totalPoints;
 
-      // Load transaction summary to calculate eligibility
+      // Load all transactions for this buyer
       const snap = await db.ref("transactions").orderByChild("buyerId").equalTo(currentBuyerId).once("value");
       snap.forEach(child => {
         const data = child.val();
-        ["copyaren","chocobara","camericano"].forEach(drink => {
+        ["copyaren", "chocobara", "camericano"].forEach(drink => {
           const qty = parseInt(data[`${drink}Qty`]) || 0;
           const size = data[`${drink}Size`] || "";
           if (qty > 0 && size) {
@@ -143,11 +154,17 @@
           }
         });
       });
+
+      // Update display summary
+      document.getElementById("sumGlass").innerText = purchaseSummary["glass"] || 0;
+      document.getElementById("sumPocket").innerText = purchaseSummary["pocket"] || 0;
+      document.getElementById("sum500").innerText = purchaseSummary["500ml"] || 0;
+      document.getElementById("sum1L").innerText = purchaseSummary["1l"] || 0;
+      document.getElementById("purchaseSummaryCard").classList.remove("hidden");
     });
 
-    // Redemption rule logic
     function canRedeemFor(size) {
-      if (purchaseSummary["1l"] >= 1) return true; // 1L unlocks all
+      if (purchaseSummary["1l"] >= 1) return true;
       if (size === "glass") return purchaseSummary["glass"] >= 10;
       if (size === "pocket") return purchaseSummary["pocket"] >= 10 || purchaseSummary["1l"] >= 1;
       if (size === "500ml") return purchaseSummary["500ml"] >= 10 || purchaseSummary["1l"] >= 1;
