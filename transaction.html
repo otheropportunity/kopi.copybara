@@ -94,7 +94,7 @@
       </div>
 
       <button onclick="calculateTotal()" class="w-full bg-yellow-600 text-white p-2 rounded-lg mt-3 hover:bg-yellow-700">🧮 Calculate Total</button>
-      <button onclick="submitTransaction()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-3 hover:bg-amber-800">Submit Transaction</button>
+      <button id="submitBtn" onclick="submitTransaction()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-3 hover:bg-amber-800">Submit Transaction</button>
       <button onclick="goToRedeem()" class="w-full bg-blue-700 text-white p-2 rounded-lg mt-3 hover:bg-blue-800">Redeem Points</button>
     </div>
 
@@ -170,7 +170,7 @@ function searchBuyer(){
   });
 }
 
-// === Calculate Total + Save Size Summary ===
+// === Calculate Total ===
 function calculateTotal(){
   const cQ=parseInt(document.getElementById("copyarenQty").value)||0;
   const cS=document.getElementById("copyarenSize").value;
@@ -190,7 +190,6 @@ function calculateTotal(){
     document.getElementById("changeAmount").textContent=change.toLocaleString();
   }
 
-  // ✅ Save summary for redeem rules
   const purchaseSummary = { glass: 0, pocket: 0, ml500: 0, l1: 0 };
   function classifySize(size, qty) {
     if (size === "175") purchaseSummary.glass += qty;
@@ -203,23 +202,23 @@ function calculateTotal(){
   classifySize(aS, aQ);
 
   sessionStorage.setItem("purchaseSummary", JSON.stringify(purchaseSummary));
-
-  // Return values for submit
   return { totalAmount, totalPoints, cQ, cS, bQ, bS, aQ, aS };
 }
 
-// === Submit Transaction ===
+// === Submit Transaction (fixed version) ===
 function submitTransaction(){
   if(!currentBuyerId) return alert("Search for a buyer first!");
   if(!paymentType) return alert("Select payment type!");
+  const submitBtn=document.getElementById("submitBtn");
+  submitBtn.disabled=true; submitBtn.textContent="Processing...";
 
   db.ref("system/redemptionLock").once("value").then(lockSnap=>{
-    if(lockSnap.val()) { alert("❌ Cannot process transaction while redemption is in progress!"); return; }
+    if(lockSnap.val()) { alert("❌ Cannot process transaction while redemption is in progress!"); submitBtn.disabled=false; submitBtn.textContent="Submit Transaction"; return; }
 
     const { totalAmount,totalPoints,cQ,cS,bQ,bS,aQ,aS } = calculateTotal();
-    if(totalAmount===0) return alert("Please select items!");
+    if(totalAmount===0) { alert("Please select items!"); submitBtn.disabled=false; submitBtn.textContent="Submit Transaction"; return; }
     const confirmPurchase = confirm(`Confirm transaction?\nTotal: Rp ${totalAmount.toLocaleString()}\nPayment: ${paymentType}`);
-    if(!confirmPurchase) return;
+    if(!confirmPurchase){ submitBtn.disabled=false; submitBtn.textContent="Submit Transaction"; return; }
 
     const paidAmount = paymentType==="CASH" ? parseInt(document.getElementById("cashPaid").value)||0 : totalAmount;
     const changeAmount = paymentType==="CASH" ? Math.max(0,paidAmount-totalAmount) : 0;
@@ -235,44 +234,56 @@ function submitTransaction(){
       buyerRef.update({
         masterPoints: newMaster,
         lastTransactionPoint: totalPoints
-      });
+      }).then(()=>{
+        db.ref("transactions").push({
+          buyerId: currentBuyerId,
+          buyerName: currentBuyerName,
+          copyarenQty: cQ, copyarenSize: cS,
+          chocobaraQty: bQ, chocobaraSize: bS,
+          camericanoQty: aQ, camericanoSize: aS,
+          totalAmount, paymentType, paidAmount, changeAmount,
+          totalPointsEarned: totalPoints,
+          updatedMasterPoints: newMaster,
+          staff: staffName,
+          dateTime: now
+        }).then(()=>{
+          alert("✅ Transaction successful!");
+          // Reset
+          document.getElementById("copyarenQty").value=0;
+          document.getElementById("chocobaraQty").value=0;
+          document.getElementById("camericanoQty").value=0;
+          document.getElementById("cashPaid").value="";
+          document.getElementById("changeAmount").textContent="0";
+          document.getElementById("totalAmount").textContent="0";
+          document.getElementById("totalPoints").textContent="0";
+          document.getElementById("selectedPayment").textContent="None";
+          document.getElementById("cashInputSection").classList.add("hidden");
+          paymentType=null;
 
-      db.ref("transactions").push({
-        buyerId: currentBuyerId,
-        buyerName: currentBuyerName,
-        copyarenQty: cQ,
-        copyarenSize: cS,
-        chocobaraQty: bQ,
-        chocobaraSize: bS,
-        camericanoQty: aQ,
-        camericanoSize: aS,
-        totalAmount,
-        paymentType,
-        paidAmount,
-        changeAmount,
-        totalPointsEarned: totalPoints,
-        updatedMasterPoints: newMaster,
-        staff: staffName,
-        dateTime: now
-      }).then(() => {
-        alert("✅ Transaction successful!");
-        window.location.reload();
+          // Update buyer points
+          document.getElementById("buyerFoundPoints").innerText=newMaster;
+          currentBuyerPoints=newMaster;
+          const updatedMember=JSON.parse(sessionStorage.getItem("currentMember")||"{}");
+          updatedMember.points=newMaster;
+          sessionStorage.setItem("currentMember",JSON.stringify(updatedMember));
+
+          submitBtn.disabled=false;
+          submitBtn.textContent="Submit Transaction";
+        });
       }).catch(err=>{
-        console.error("Transaction failed:", err);
-        alert("❌ Transaction failed: " + err.message);
+        console.error(err);
+        alert("❌ Failed to update buyer points: "+err.message);
+        submitBtn.disabled=false;
+        submitBtn.textContent="Submit Transaction";
       });
     });
   });
 }
 
-// === Go To Redeem ===
-function goToRedeem() {
-  const memberData = JSON.parse(sessionStorage.getItem("currentMember") || "{}");
-  if (!memberData.name) {
-    alert("⚠️ Please search and select a buyer first!");
-    return;
-  }
-  window.location.href = "redeem.html";
+function goToRedeem(){
+  const memberData=JSON.parse(sessionStorage.getItem("currentMember")||"{}");
+  if(!memberData.name){ alert("⚠️ Please search and select a buyer first!"); return; }
+  window.location.href="redeem.html";
 }
 
 function logoutStaff(){ sessionStorage.clear(); window.location.href="index.html"; }
