@@ -7,12 +7,11 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-
   <style>
     body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
     .card { background: white; border-radius: 12px; padding: 24px; max-width: 500px; margin: 50px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
     select, input[type="number"], input[type="text"] { border: 1px solid #ccc; border-radius: 6px; padding: 6px; }
-  </style>---
+  </style>
 </head>
 <body>
   <div class="card">
@@ -153,11 +152,20 @@ function searchBuyer(){
         found=true;
         currentBuyerId = child.key;
         currentBuyerName = data.name;
-        currentBuyerPoints = data.points || 0;
+        currentBuyerPoints = data.masterPoint || data.points || 0;
 
         document.getElementById("buyerFoundName").innerText = currentBuyerName;
         document.getElementById("buyerFoundPoints").innerText = currentBuyerPoints;
         document.getElementById("buyerInfo").classList.remove("hidden");
+
+        // ✅ store for redeem.html
+        const memberData = {
+          name: currentBuyerName,
+          password: data.password || "",
+          points: currentBuyerPoints
+        };
+        sessionStorage.setItem("currentMember", JSON.stringify(memberData));
+
         sessionStorage.setItem("currentBuyerId", currentBuyerId);
         sessionStorage.setItem("currentBuyerName", currentBuyerName);
         sessionStorage.setItem("currentBuyerPoints", currentBuyerPoints);
@@ -186,30 +194,11 @@ function calculateTotal(){
   return { totalAmount,totalPoints };
 }
 
-  // ⬇️ ADD THIS BLOCK after member is found successfully
-  function handleMemberFound(buyerName, buyerPassword, buyerPoints) {
-    // Your existing logic showing member info...
-
-    // ✅ Store member temporarily for redeem.html
-    sessionStorage.setItem("currentMember", JSON.stringify({
-      name: buyerName,
-      password: buyerPassword,
-      points: buyerPoints
-    }));
-
-    console.log("Member data stored for redemption:", buyerName);
-  }
-
-  // Example: integrate with your existing member search success
-  // wherever you confirm a member found, call:
-  // handleMemberFound(foundName, foundPassword, foundPoints);
-  
-// === Submit Transaction with redemption lock check ===
+// === Submit Transaction ===
 function submitTransaction(){
   if(!currentBuyerId) return alert("Search for a buyer first!");
   if(!paymentType) return alert("Select payment type!");
 
-  // Check pending redemption lock globally
   db.ref("system/redemptionLock").once("value").then(lockSnap=>{
     if(lockSnap.val()) { alert("❌ Cannot process transaction while redemption is in progress!"); return; }
 
@@ -218,86 +207,58 @@ function submitTransaction(){
     const confirmPurchase = confirm(`Confirm transaction?\nTotal: Rp ${totalAmount.toLocaleString()}\nPayment: ${paymentType}`);
     if(!confirmPurchase) return;
 
-    const paidAmount=paymentType==="CASH"?parseInt(document.getElementById("cashPaid").value)||0:totalAmount;
-    const changeAmount=paymentType==="CASH"?Math.max(0,paidAmount-totalAmount):0;
-    const staffName=sessionStorage.getItem("staffName")||"Unknown";
-    const now=new Date().toLocaleString("en-GB");
+    const paidAmount = paymentType==="CASH" ? parseInt(document.getElementById("cashPaid").value)||0 : totalAmount;
+    const changeAmount = paymentType==="CASH" ? Math.max(0,paidAmount-totalAmount) : 0;
+    const staffName = sessionStorage.getItem("staffName") || "Unknown";
+    const now = new Date().toLocaleString("en-GB");
 
-const staffName = sessionStorage.getItem("staffName") || "Unknown";
-const now = new Date().toLocaleString("en-GB");
+    const buyerRef = db.ref("buyers/" + currentBuyerId);
+    buyerRef.once("value").then(snap => {
+      const buyerData = snap.val() || {};
+      const currentMasterPoint = buyerData.masterPoint || 0;
+      const newMasterPoint = currentMasterPoint + totalPoints;
+      const newTransactionPoint = totalPoints;
 
-// 🔹 Use 'masterPoint' as the true accumulated points field
-const buyerRef = db.ref("buyers/" + currentBuyerId);
+      buyerRef.update({
+        masterPoint: newMasterPoint,
+        lastTransactionPoint: newTransactionPoint
+      });
 
-buyerRef.once("value").then(snap => {
-  const buyerData = snap.val() || {};
-  const currentMasterPoint = buyerData.masterPoint || 0;
-
-  const newMasterPoint = currentMasterPoint + totalPoints;  // add points to master
-  const newTransactionPoint = totalPoints;                  // points earned this transaction only
-
-  // 🔸 Update buyer record
-  buyerRef.update({
-    masterPoint: newMasterPoint,
-    lastTransactionPoint: newTransactionPoint
+      db.ref("transactions").push({
+        buyerId: currentBuyerId,
+        buyerName: currentBuyerName,
+        copyarenQty: parseInt(document.getElementById("copyarenQty").value) || 0,
+        copyarenSize: document.getElementById("copyarenSize").value,
+        chocobaraQty: parseInt(document.getElementById("chocobaraQty").value) || 0,
+        chocobaraSize: document.getElementById("chocobaraSize").value,
+        camericanoQty: parseInt(document.getElementById("camericanoQty").value) || 0,
+        camericanoSize: document.getElementById("camericanoSize").value,
+        totalAmount,
+        paymentType,
+        paidAmount,
+        changeAmount,
+        totalPointsEarned: newTransactionPoint,
+        updatedMasterPoint: newMasterPoint,
+        staff: staffName,
+        dateTime: now
+      }).then(() => {
+        alert("✅ Transaction successful!");
+        window.location.reload();
+      });
+    });
   });
+}
 
-  // 🔸 Log transaction with new fields
-  db.ref("transactions").push({
-    buyerId: currentBuyerId,
-    buyerName: currentBuyerName,
-    copyarenQty: parseInt(document.getElementById("copyarenQty").value) || 0,
-    copyarenSize: document.getElementById("copyarenSize").value,
-    chocobaraQty: parseInt(document.getElementById("chocobaraQty").value) || 0,
-    chocobaraSize: document.getElementById("chocobaraSize").value,
-    camericanoQty: parseInt(document.getElementById("camericanoQty").value) || 0,
-    camericanoSize: document.getElementById("camericanoSize").value,
-    totalAmount,
-    paymentType,
-    paidAmount,
-    changeAmount,
-    totalPointsEarned: newTransactionPoint,
-    updatedMasterPoint: newMasterPoint, // 👈 For history tracking
-    staff: staffName,
-    dateTime: now
-  }).then(() => {
-    alert("✅ Transaction successful!");
-    window.location.reload();
-  });
-});
-
-// ✅ Save buyer info and points before going to redeem.html
+// === Go To Redeem ===
 function goToRedeem() {
-  const buyerName = document.getElementById("buyerFoundName")?.innerText.trim();
-  const buyerPoints = parseInt(document.getElementById("buyerFoundPoints")?.innerText || "0");
-
-  if (!buyerName) {
+  const memberData = JSON.parse(sessionStorage.getItem("currentMember") || "{}");
+  if (!memberData.name) {
     alert("⚠️ Please search and select a buyer first!");
     return;
   }
-
-  // Fetch buyer password from Firebase (if stored)
-  db.ref("buyers").once("value").then(snapshot => {
-    let buyerPassword = "";
-    snapshot.forEach(child => {
-      const data = child.val();
-      if (data.name === buyerName) buyerPassword = data.password || "";
-    });
-
-    // ✅ Save all member info for redeem.html
-    const memberData = {
-      name: buyerName,
-      password: buyerPassword,
-      points: buyerPoints
-    };
-    sessionStorage.setItem("currentMember", JSON.stringify(memberData));
-
-    // ✅ Go to redeem page
-    window.location.href = "redeem.html";
-  });
+  window.location.href = "redeem.html";
 }
-  
-  
+
 function logoutStaff(){ sessionStorage.clear(); window.location.href="index.html"; }
 </script>
 </body>
