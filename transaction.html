@@ -103,6 +103,7 @@
       <button onclick="logoutStaff()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg hover:bg-gray-400">Logout</button>
     </div>
   </div>
+
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
@@ -169,7 +170,7 @@ function searchBuyer(){
   });
 }
 
-// === Calculate Total ===
+// === Calculate Total + Accumulate ===
 function calculateTotal(){
   const cQ=parseInt(document.getElementById("copyarenQty").value)||0;
   const cS=document.getElementById("copyarenSize").value;
@@ -203,13 +204,19 @@ function calculateTotal(){
   classifySize(bS, bQ);
   classifySize(aS, aQ);
 
-  // Save to session for redeem.html
+  // ✅ Merge with existing session summary (accumulate counts)
+  const prevSummary = JSON.parse(sessionStorage.getItem("purchaseSummary") || "{}");
+  for (let key in purchaseSummary) {
+    if (prevSummary[key]) purchaseSummary[key] += prevSummary[key];
+  }
+
+  // ✅ Save back to sessionStorage (used by redeem.html)
   sessionStorage.setItem("purchaseSummary", JSON.stringify(purchaseSummary));
 
   return { totalAmount, totalPoints, cQ, cS, bQ, bS, aQ, aS };
 }
 
-// === Submit Transaction (with masterPoints update) ===
+// === Submit Transaction ===
 function submitTransaction(){
   if(!currentBuyerId) return alert("Search for a buyer first!");
   if(!paymentType) return alert("Select payment type!");
@@ -262,7 +269,7 @@ function submitTransaction(){
           dateTime: now
         }).then(()=>{
           alert("✅ Transaction successful!");
-          // Reset form
+          // Reset form inputs only
           document.getElementById("copyarenQty").value=0;
           document.getElementById("chocobaraQty").value=0;
           document.getElementById("camericanoQty").value=0;
@@ -300,8 +307,12 @@ function goToRedeem(){
   window.location.href="redeem.html";
 }
 
-function logoutStaff(){ sessionStorage.clear(); window.location.href="index.html"; }
+function logoutStaff(){
+  // optional: clear accumulated summary when logout
+  sessionStorage.removeItem("purchaseSummary");
+  sessionStorage.clear();
+  window.location.href="index.html";
+}
 </script>
-
 </body>
 </html>
