@@ -269,6 +269,46 @@ function submitTransaction(){
           dateTime: now
         }).then(()=>{
           alert("✅ Transaction successful!");
+          
+          // ✅ Update buyer size summary for redeem rules
+          const buyerRefSummary = db.ref("buyers/" + currentBuyerId);
+          buyerRefSummary.once("value").then(snapshot => {
+            if (snapshot.exists()) {
+              const buyerData = snapshot.val();
+
+              // existing summary counts (or 0 if none)
+              const currentGlass = buyerData.summaryGlass || 0;
+              const currentPocket = buyerData.summaryPocket || 0;
+              const current500ml = buyerData.summary500ml || 0;
+              const current1L = buyerData.summary1L || 0;
+
+              // per-transaction add count
+              let addGlass = 0, addPocket = 0, add500ml = 0, add1L = 0;
+
+              const drinkSizes = [
+                { qty: cQ, size: cS },
+                { qty: bQ, size: bS },
+                { qty: aQ, size: aS }
+              ];
+
+              drinkSizes.forEach(item => {
+                if (!item.size) return;
+                if (item.size.includes("175")) addGlass += parseInt(item.qty) || 0;
+                else if (item.size.includes("250")) addPocket += parseInt(item.qty) || 0;
+                else if (item.size.includes("500")) add500ml += parseInt(item.qty) || 0;
+                else if (item.size.includes("1000") || item.size.includes("1L")) add1L += parseInt(item.qty) || 0;
+              });
+
+              // ✅ Update buyer summary in Firebase
+              buyerRefSummary.update({
+                summaryGlass: currentGlass + addGlass,
+                summaryPocket: currentPocket + addPocket,
+                summary500ml: current500ml + add500ml,
+                summary1L: current1L + add1L
+              });
+            }
+          });
+
           // Reset form inputs only
           document.getElementById("copyarenQty").value=0;
           document.getElementById("chocobaraQty").value=0;
