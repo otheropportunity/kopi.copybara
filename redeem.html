@@ -26,6 +26,7 @@
     body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
     .card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 450px; margin: 40px auto; }
     .hidden { display: none; }
+    .muted { opacity: 0.5; pointer-events: none; }
   </style>
 </head>
 <body>
@@ -125,127 +126,264 @@
     </div>
   </div>
 
-  <script>
-    let currentBuyer = JSON.parse(sessionStorage.getItem("currentMember") || "{}");
-    let currentBuyerId = sessionStorage.getItem("currentBuyerId");
-    let totalPoints = 0;
-    let redeemData = {};
-    let purchaseSummary = { glass: 0, pocket: 0, "500ml": 0, "1l": 0 };
+<script>
+  // Buyer + points + per-size summary
+  let currentBuyer = JSON.parse(sessionStorage.getItem("currentMember") || "{}");
+  let currentBuyerId = sessionStorage.getItem("currentBuyerId");
+  let totalPoints = 0; // master points
+  let redeemData = {};  // items to redeem in current flow
+  // per-size stored in DB: summaryGlass, summaryPocket, summary500ml, summary1L
+  let sizeSummary = { glass: 0, pocket: 0, "500ml": 0, "1l": 0 };
 
-    document.addEventListener("DOMContentLoaded", async () => {
-      if (!currentBuyer.name) {
-        alert("⚠️ No member found. Please go back to Transaction page.");
-        window.location.href = "transaction.html";
+  // Points cost table per product & size
+  const POINTS_COST = {
+    Copyaren: { glass: 10, pocket: 20, "500ml": 40, "1l": 80 },
+    Chocobara: { glass: 12, pocket: 24, "500ml": 48, "1l": 95 },
+    Camericano: { glass: 8, pocket: 15, "500ml": 30, "1l": 60 }
+  };
+
+  document.addEventListener("DOMContentLoaded", async () => {
+    if (!currentBuyer.name) {
+      alert("⚠️ No member found. Please go back to Transaction page.");
+      window.location.href = "transaction.html";
+      return;
+    }
+
+    // Live load buyer object from DB
+    const buyerSnap = await db.ref("buyers/" + currentBuyerId).once("value");
+    const buyerData = buyerSnap.val() || {};
+    totalPoints = buyerData.masterPoints || buyerData.points || 0;
+
+    // read per-size summary fields from buyer record (preferred)
+    sizeSummary.glass = buyerData.summaryGlass || 0;
+    sizeSummary.pocket = buyerData.summaryPocket || 0;
+    sizeSummary["500ml"] = buyerData.summary500ml || 0;
+    sizeSummary["1l"] = buyerData.summary1L || 0;
+
+    // fallback: if no per-size summary in DB, try to build from transactions (slower)
+    if (!buyerData.summaryGlass && !buyerData.summaryPocket && !buyerData.summary500ml && !buyerData.summary1L) {
+      const snap = await db.ref("transactions").orderByChild("buyerId").equalTo(currentBuyerId).once("value");
+      snap.forEach(child => {
+        const data = child.val();
+        ["copyaren","chocobara","camericano"].forEach(drink => {
+          const qty = parseInt(data[`${drink}Qty`]) || 0;
+          const size = data[`${drink}Size`] || "";
+          if (qty>0 && size) {
+            // Normalize: our transaction saves sizes as "175","250","500","1000" in transaction.html
+            // Map that to the keys used here if necessary
+            if (size === "175" || size === "glass") sizeSummary.glass += qty;
+            else if (size === "250" || size === "pocket") sizeSummary.pocket += qty;
+            else if (size === "500" || size === "500ml") sizeSummary["500ml"] += qty;
+            else if (size === "1000" || size === "1l") sizeSummary["1l"] += qty;
+          }
+        });
+      });
+      // Save derived summary back to buyer record for performance
+      await db.ref("buyers/" + currentBuyerId).update({
+        summaryGlass: sizeSummary.glass,
+        summaryPocket: sizeSummary.pocket,
+        summary500ml: sizeSummary["500ml"],
+        summary1L: sizeSummary["1l"]
+      });
+    }
+
+    document.getElementById("welcomeName").innerText = "Welcome, " + currentBuyer.name;
+    document.getElementById("userPoints").innerText = totalPoints;
+    refreshSummaryUI();
+  });
+
+  function refreshSummaryUI(){
+    document.getElementById("sumGlass").innerText = sizeSummary.glass || 0;
+    document.getElementById("sumPocket").innerText = sizeSummary.pocket || 0;
+    document.getElementById("sum500").innerText = sizeSummary["500ml"] || 0;
+    document.getElementById("sum1L").innerText = sizeSummary["1l"] || 0;
+    document.getElementById("purchaseSummaryCard").classList.remove("hidden");
+    document.getElementById("userPoints").innerText = totalPoints;
+  }
+
+  // allowed source buckets for each redeem target size
+  // larger sizes can be used to cover smaller-size redemptions (greedy uses exact size first)
+  const ALLOWED_SOURCES = {
+    glass: ["glass","pocket","500ml","1l"],
+    pocket: ["pocket","500ml","1l"],
+    "500ml": ["500ml","1l"],
+    "1l": ["1l"]
+  };
+
+  // check whether the requested qty for target size can be fulfilled from allowed sources
+  function canFulfillQtyForSize(targetSize, qty){
+    let available = 0;
+    const sources = ALLOWED_SOURCES[targetSize] || [];
+    for (const s of sources) {
+      if (s === "glass") available += sizeSummary.glass || 0;
+      if (s === "pocket") available += sizeSummary.pocket || 0;
+      if (s === "500ml") available += sizeSummary["500ml"] || 0;
+      if (s === "1l") available += sizeSummary["1l"] || 0;
+    }
+    return available >= qty;
+  }
+
+  // compute a deduction plan: how many units to deduct from each source bucket
+  // preference: deduct from the exact size first, then escalate to larger sizes
+  function computeDeductionPlan(targetSize, qty){
+    const plan = { glass:0, pocket:0, "500ml":0, "1l":0 };
+    let remaining = qty;
+    const sources = ALLOWED_SOURCES[targetSize] || [];
+    for (const s of sources){
+      let avail = 0;
+      if (s === "glass") avail = sizeSummary.glass || 0;
+      if (s === "pocket") avail = sizeSummary.pocket || 0;
+      if (s === "500ml") avail = sizeSummary["500ml"] || 0;
+      if (s === "1l") avail = sizeSummary["1l"] || 0;
+      const use = Math.min(avail, remaining);
+      plan[s] = use;
+      remaining -= use;
+      if (remaining<=0) break;
+    }
+    if (remaining>0) return null; // cannot fulfill
+    return plan;
+  }
+
+  function showSummary(){
+    // Build requested items
+    const items = [
+      { key:"Copyaren", name:"Copyaren", qty: parseInt(document.getElementById("copyarenQty").value)||0, size: document.getElementById("copyarenSize").value, ptsTable: POINTS_COST.Copyaren },
+      { key:"Chocobara", name:"Chocobara", qty: parseInt(document.getElementById("chocobaraQty").value)||0, size: document.getElementById("chocobaraSize").value, ptsTable: POINTS_COST.Chocobara },
+      { key:"Camericano", name:"Camericano", qty: parseInt(document.getElementById("camericanoQty").value)||0, size: document.getElementById("camericanoSize").value, ptsTable: POINTS_COST.Camericano }
+    ];
+
+    let html = "";
+    let totalPtsNeeded = 0;
+    redeemData = {}; // reset
+
+    for (const it of items){
+      if (it.qty <= 0) continue;
+      // size key normalization (UI uses 'glass','pocket','500ml','1l')
+      const sizeKey = it.size;
+      // check master points later (aggregate)
+      const costPerItem = it.ptsTable[sizeKey];
+      if (!costPerItem) {
+        alert("Unknown pricing for " + it.name + " size " + sizeKey);
+        return;
+      }
+      // check per-size counts (availability)
+      if (!canFulfillQtyForSize(sizeKey, it.qty)) {
+        // compute how many are available (sum of allowed sources)
+        let available = 0;
+        for (const s of ALLOWED_SOURCES[sizeKey]) {
+          available += (sizeSummary[s] || 0);
+        }
+        const needed = it.qty - available;
+        alert(`❌ Not enough purchased items of size '${sizeKey}' to redeem ${it.name} × ${it.qty}. You need ${needed} more ${sizeKey} purchases (or larger-size purchases).`);
         return;
       }
 
-      // Load buyer master point live from DB
-      const buyerSnap = await db.ref("buyers/" + currentBuyerId).once("value");
-      const buyerData = buyerSnap.val() || {};
-      totalPoints = buyerData.masterPoints || buyerData.points || 0;
-
-      document.getElementById("welcomeName").innerText = "Welcome, " + currentBuyer.name;
-      document.getElementById("userPoints").innerText = totalPoints;
-
-      // ✅ Try to load purchase summary from session first (fast)
-      const lastSummary = JSON.parse(sessionStorage.getItem("purchaseSummary") || "{}");
-      if (Object.keys(lastSummary).length > 0) {
-        purchaseSummary = lastSummary;
-      } else {
-        // Fallback - load from Firebase transactions
-        const snap = await db.ref("transactions").orderByChild("buyerId").equalTo(currentBuyerId).once("value");
-        snap.forEach(child => {
-          const data = child.val();
-          ["copyaren", "chocobara", "camericano"].forEach(drink => {
-            const qty = parseInt(data[`${drink}Qty`]) || 0;
-            const size = data[`${drink}Size`] || "";
-            if (qty > 0 && size) {
-              purchaseSummary[size] = (purchaseSummary[size] || 0) + qty;
-            }
-          });
-        });
-      }
-
-      // ✅ Update UI
-      document.getElementById("sumGlass").innerText = purchaseSummary["glass"] || 0;
-      document.getElementById("sumPocket").innerText = purchaseSummary["pocket"] || 0;
-      document.getElementById("sum500").innerText = purchaseSummary["500ml"] || 0;
-      document.getElementById("sum1L").innerText = purchaseSummary["1l"] || 0;
-      document.getElementById("purchaseSummaryCard").classList.remove("hidden");
-    });
-
-    // ✅ Rule checker (glass-pocket-500ml-1l)
-    function canRedeemFor(size) {
-      if (purchaseSummary["1l"] >= 1) return true; // 1L unlocks all
-      if (size === "glass") return purchaseSummary["glass"] >= 10;
-      if (size === "pocket") return purchaseSummary["pocket"] >= 10 || purchaseSummary["1l"] >= 1;
-      if (size === "500ml") return purchaseSummary["500ml"] >= 10 || purchaseSummary["1l"] >= 1;
-      if (size === "1l") return purchaseSummary["1l"] >= 10;
-      return false;
+      const sub = costPerItem * it.qty;
+      html += `<p>${it.name} (${sizeKey}) × ${it.qty} = ${sub} pts</p>`;
+      totalPtsNeeded += sub;
+      redeemData[it.name] = { qty: it.qty, size: sizeKey, points: sub, costPerItem: costPerItem };
     }
 
-    function showSummary() {
-      const items = [
-        { name: "Copyaren", qty: parseInt(copyarenQty.value), size: copyarenSize.value, pts: {glass:10,pocket:20,"500ml":40,"1l":80} },
-        { name: "Chocobara", qty: parseInt(chocobaraQty.value), size: chocobaraSize.value, pts: {glass:12,pocket:24,"500ml":48,"1l":95} },
-        { name: "Camericano", qty: parseInt(camericanoQty.value), size: camericanoSize.value, pts: {glass:8,pocket:15,"500ml":30,"1l":60} },
-      ];
+    if (Object.keys(redeemData).length === 0) return alert("Select at least 1 item to redeem.");
+    if (totalPtsNeeded > totalPoints) return alert("Not enough master points! You need " + (totalPtsNeeded - totalPoints) + " more points.");
 
-      let summaryHTML = "";
-      let total = 0;
-      redeemData = {};
+    // show modal
+    document.getElementById("summaryList").innerHTML = html;
+    document.getElementById("summaryTotal").innerText = totalPtsNeeded;
+    document.getElementById("summaryModal").classList.remove("hidden");
+  }
 
-      for (const i of items) {
-        if (i.qty > 0) {
-          if (!canRedeemFor(i.size)) {
-            alert(`❌ You are not eligible to redeem ${i.name} (${i.size.toUpperCase()}).`);
-            return;
-          }
-          const subtotal = i.qty * i.pts[i.size];
-          summaryHTML += `<p>${i.name} (${i.size}) × ${i.qty} = ${subtotal} pts</p>`;
-          total += subtotal;
-          redeemData[i.name] = { qty: i.qty, size: i.size, points: subtotal };
-        }
-      }
+  function cancelSummary(){ document.getElementById("summaryModal").classList.add("hidden"); }
+  function askConfirmation(){ document.getElementById("summaryModal").classList.add("hidden"); document.getElementById("passwordModal").classList.remove("hidden"); }
+  function cancelPassword(){ document.getElementById("passwordModal").classList.add("hidden"); }
 
-      if (total === 0) return alert("Select at least 1 item to redeem.");
-      if (total > totalPoints) return alert("Not enough points!");
+  async function confirmRedemption(){
+    const staffPass = document.getElementById("staffPassword").value.trim();
+    const memberPass = document.getElementById("memberPassword").value.trim();
 
-      document.getElementById("summaryList").innerHTML = summaryHTML;
-      document.getElementById("summaryTotal").innerText = total;
-      document.getElementById("summaryModal").classList.remove("hidden");
+    if (staffPass !== "230420") { alert("❌ Invalid staff master password!"); return; }
+    if (memberPass !== currentBuyer.password) { alert("❌ Invalid member password!"); return; }
+
+    // compute totals and deduction plan for each item
+    const items = [];
+    let totalCost = 0;
+    for (const [name,data] of Object.entries(redeemData)){
+      totalCost += data.points;
+      // compute deduction plan for this item
+      const plan = computeDeductionPlan(data.size, data.qty);
+      if (!plan) { alert("❌ Failed to compute deduction plan (insufficient per-size counts)."); return; }
+      items.push({ name, size: data.size, qty: data.qty, points: data.points, plan });
     }
 
-    function cancelSummary(){ document.getElementById("summaryModal").classList.add("hidden"); }
-    function askConfirmation(){ document.getElementById("summaryModal").classList.add("hidden"); document.getElementById("passwordModal").classList.remove("hidden"); }
-    function cancelPassword(){ document.getElementById("passwordModal").classList.add("hidden"); }
+    // update DB: deduct masterPoints and deduct per-size counters according to plans
+    try {
+      const buyerRef = db.ref("buyers/" + currentBuyerId);
+      // fetch latest buyer snapshot (to be safe)
+      const snap = await buyerRef.once("value");
+      const buyerData = snap.val() || {};
+      const latestMaster = buyerData.masterPoints || buyerData.points || 0;
+      if (latestMaster < totalCost) { alert("❌ Master points changed and are now insufficient. Operation cancelled."); return; }
 
-    async function confirmRedemption(){
-      const staffPass = document.getElementById("staffPassword").value.trim();
-      const memberPass = document.getElementById("memberPassword").value.trim();
+      // compute new per-size values
+      const newSummary = {
+        summaryGlass: buyerData.summaryGlass || 0,
+        summaryPocket: buyerData.summaryPocket || 0,
+        summary500ml: buyerData.summary500ml || 0,
+        summary1L: buyerData.summary1L || 0
+      };
 
-      if(staffPass !== "230420"){ alert("❌ Invalid staff master password!"); return; }
-      if(memberPass !== currentBuyer.password){ alert("❌ Invalid member password!"); return; }
+      // apply each item plan (deduct counters)
+      for (const it of items){
+        const plan = it.plan;
+        // deduct in DB summary values
+        newSummary.summaryGlass    = Math.max(0, (newSummary.summaryGlass    || 0) - (plan.glass || 0));
+        newSummary.summaryPocket   = Math.max(0, (newSummary.summaryPocket   || 0) - (plan.pocket || 0));
+        newSummary.summary500ml    = Math.max(0, (newSummary.summary500ml    || 0) - (plan["500ml"] || 0));
+        newSummary.summary1L       = Math.max(0, (newSummary.summary1L       || 0) - (plan["1l"] || 0));
+      }
 
-      const totalCost = Object.values(redeemData).reduce((a,b)=>a+b.points,0);
-      const newTotal = Math.max(0, totalPoints - totalCost);
+      const remainingMaster = latestMaster - totalCost;
+
+      // write updates
+      await buyerRef.update({
+        masterPoints: remainingMaster,
+        summaryGlass: newSummary.summaryGlass,
+        summaryPocket: newSummary.summaryPocket,
+        summary500ml: newSummary.summary500ml,
+        summary1L: newSummary.summary1L
+      });
+
+      // push redemption record
       const timestamp = new Date().toISOString().replace("T"," ").split(".")[0];
-
-      await db.ref("buyers/" + currentBuyerId).update({ masterPoints: newTotal });
       await db.ref("redemptions").push({
         buyerId: currentBuyerId,
         buyerName: currentBuyer.name,
         redeemed: redeemData,
         totalPointsUsed: totalCost,
-        remainingPoints: newTotal,
+        remainingPoints: remainingMaster,
         time: timestamp
       });
 
-      alert("✅ Redemption successful! Remaining points: " + newTotal);
-      window.location.href = "history.html";
-    }
+      alert("✅ Redemption successful! Remaining points: " + remainingMaster);
 
-    function backToTransaction(){ window.location.href = "transaction.html"; }
-  </script>
+      // Update local UI
+      totalPoints = remainingMaster;
+      sizeSummary.glass    = newSummary.summaryGlass;
+      sizeSummary.pocket   = newSummary.summaryPocket;
+      sizeSummary["500ml"] = newSummary.summary500ml;
+      sizeSummary["1l"]    = newSummary.summary1L;
+      refreshSummaryUI();
+
+      // hide password modal and redirect to history
+      document.getElementById("passwordModal").classList.add("hidden");
+      window.location.href = "history.html";
+    } catch (err){
+      console.error(err);
+      alert("❌ Redemption failed: " + err.message);
+    }
+  }
+
+  function backToTransaction(){ window.location.href = "transaction.html"; }
+</script>
 </body>
 </html>
