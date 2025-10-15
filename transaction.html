@@ -258,7 +258,28 @@ function submitTransaction(){
   });
 }
 
-function goToRedeem(){ window.location.href="redeem.html"; }
+// ✅ Added: Save buyer info before redirect
+function saveBuyerForRedeem() {
+  if (!currentBuyerId || !currentBuyerName) {
+    showToast("Please search buyer first!", "red");
+    return false;
+  }
+  const buyerInfo = {
+    id: currentBuyerId,
+    name: currentBuyerName,
+    masterPoints: currentBuyerPoints
+  };
+  localStorage.setItem("buyerInfo", JSON.stringify(buyerInfo));
+  return true;
+}
+
+// ✅ Modified: goToRedeem()
+function goToRedeem() {
+  if (saveBuyerForRedeem()) {
+    window.location.href = "redeem.html";
+  }
+}
+
 function logoutStaff(){ sessionStorage.clear(); window.location.href="index.html"; }
 </script>
 </body>
