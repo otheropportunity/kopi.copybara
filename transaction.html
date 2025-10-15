@@ -238,7 +238,7 @@ function submitTransaction(){
     const d=snap.val()||{};
     const newMaster=(d.masterPoints||0)+totalPoints;
     db.ref("buyers/"+currentBuyerId).update({masterPoints:newMaster}).then(()=>{
-      showToast("✅ Transaction successful!");
+      showToast(`✅ Transaction saved for ${currentBuyerName} – Total ${newMaster} pts`);
       document.getElementById("buyerTotalPoints").textContent=newMaster;
       currentBuyerPoints=newMaster;
     });
