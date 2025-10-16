@@ -10,12 +10,32 @@
   <style>
     body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
     .card { background: white; border-radius: 12px; padding: 24px; max-width: 500px; margin: 50px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+
+    /* ✅ Animated Toast */
+    #toast {
+      position: fixed;
+      bottom: 20px;
+      right: -300px;
+      background-color: #16a34a;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      font-size: 14px;
+      transition: all 0.5s ease;
+      opacity: 0;
+      z-index: 1000;
+    }
+    #toast.show {
+      right: 20px;
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
 
   <!-- ✅ Toast -->
-  <div id="toast" class="hidden fixed bottom-5 right-5 bg-green-600 text-white px-4 py-2 rounded shadow-lg text-sm transition-opacity duration-500"></div>
+  <div id="toast"></div>
 
   <div class="card">
     <h1 class="text-2xl font-bold text-center text-amber-800 mb-2">☕ Staff Transaction Panel</h1>
@@ -149,14 +169,13 @@ let currentBuyerName = "";
 let currentBuyerPoints = 0;
 let paymentType = null;
 
+/* ✅ Animated Toast */
 function showToast(msg, color="green") {
-  const t=document.getElementById("toast");
-  t.textContent=msg;
-  t.classList.remove("hidden");
-  t.style.backgroundColor=color==="red"?"#dc2626":"#16a34a";
-  t.style.opacity="1";
-  setTimeout(()=>{t.style.opacity="0"},2500);
-  setTimeout(()=>{t.classList.add("hidden")},3000);
+  const toast=document.getElementById("toast");
+  toast.textContent=msg;
+  toast.style.backgroundColor=color==="red"?"#dc2626":"#16a34a";
+  toast.classList.add("show");
+  setTimeout(()=>toast.classList.remove("show"),3000);
 }
 
 const prices = {
@@ -212,12 +231,6 @@ function calculateTotal(){
 
   document.getElementById("totalAmount").textContent=totalAmount.toLocaleString();
   document.getElementById("totalPoints").textContent=totalPoints;
-
-  // ✅ Update purchase summary
-  document.getElementById("sumGlass").textContent=cS=="175"?cQ+bQ+aQ:0;
-  document.getElementById("sumPocket").textContent=cS=="250"?cQ+bQ+aQ:0;
-  document.getElementById("sum500").textContent=cS=="500"?cQ+bQ+aQ:0;
-  document.getElementById("sum1L").textContent=cS=="1000"?cQ+bQ+aQ:0;
 
   if(paymentType==="CASH"){
     const paid=+document.getElementById("cashPaid").value||0;
