@@ -26,14 +26,17 @@
     body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
     .card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 450px; margin: 40px auto; }
     .hidden { display: none; }
-    .muted { opacity: 0.5; pointer-events: none; }
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: #333; color: #fff; padding: 12px 20px; border-radius: 8px;
+      opacity: 0.9; font-size: 14px; z-index: 999;
+    }
   </style>
 </head>
 <body>
   <div class="card">
     <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">🎁 Redeem Points</h1>
 
-    <!-- ✅ Added Per-Item Summary (Glass, Pocket, etc.) -->
     <div id="buyerSummary" class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 hidden">
       <h3 class="font-semibold text-amber-800 text-center mb-2">👤 Member Summary</h3>
       <p class="text-center mb-2">Name: <span id="buyerNameDisplay" class="font-bold text-amber-900">-</span></p>
@@ -45,116 +48,143 @@
         <p>1L: <span id="l1Points" class="font-bold text-amber-900">0</span></p>
       </div>
     </div>
-    <!-- ✅ End Per-Item Summary -->
-
-    <div class="text-center mb-4">
-      <h2 id="welcomeName" class="text-lg font-semibold text-amber-900"></h2>
-      <p>Total Points: <span id="userPoints" class="font-bold text-green-700">0</span></p>
-    </div>
-
-    <!-- Purchase Summary -->
-    <div id="purchaseSummaryCard" class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 hidden">
-      <h3 class="font-semibold text-amber-800 text-center mb-2">☕ Purchase Summary</h3>
-      <div class="grid grid-cols-2 gap-1 text-sm text-center">
-        <p>Glass: <span id="sumGlass" class="font-bold text-amber-900">0</span></p>
-        <p>Pocket: <span id="sumPocket" class="font-bold text-amber-900">0</span></p>
-        <p>500ml: <span id="sum500" class="font-bold text-amber-900">0</span></p>
-        <p>1L: <span id="sum1L" class="font-bold text-amber-900">0</span></p>
-      </div>
-    </div>
 
     <div class="mb-4">
       <h3 class="font-semibold text-amber-800 mb-2">Select Items to Redeem</h3>
 
-      <!-- Copyaren -->
       <div class="mb-2">
         <label>Copyaren</label>
         <div class="flex gap-2 mb-1">
           <input type="number" id="copyarenQty" min="0" value="0" class="w-16 border text-center rounded">
           <select id="copyarenSize" class="flex-grow border rounded p-1">
-            <option value="glass">Glass 175ml (10 pts)</option>
-            <option value="pocket">Pocket 250ml (20 pts)</option>
-            <option value="500ml">500ml (40 pts)</option>
-            <option value="1l">1L (80 pts)</option>
+            <option value="glass" data-points="10">Glass 175ml (10 pts)</option>
+            <option value="pocket" data-points="20">Pocket 250ml (20 pts)</option>
+            <option value="500ml" data-points="40">500ml (40 pts)</option>
+            <option value="1l" data-points="80">1L (80 pts)</option>
           </select>
         </div>
       </div>
 
-      <!-- Chocobara -->
       <div class="mb-2">
         <label>Chocobara</label>
         <div class="flex gap-2 mb-1">
           <input type="number" id="chocobaraQty" min="0" value="0" class="w-16 border text-center rounded">
           <select id="chocobaraSize" class="flex-grow border rounded p-1">
-            <option value="glass">Glass 175ml (12 pts)</option>
-            <option value="pocket">Pocket 250ml (24 pts)</option>
-            <option value="500ml">500ml (48 pts)</option>
-            <option value="1l">1L (95 pts)</option>
+            <option value="glass" data-points="12">Glass 175ml (12 pts)</option>
+            <option value="pocket" data-points="24">Pocket 250ml (24 pts)</option>
+            <option value="500ml" data-points="48">500ml (48 pts)</option>
+            <option value="1l" data-points="95">1L (95 pts)</option>
           </select>
         </div>
       </div>
 
-      <!-- Camericano -->
       <div class="mb-2">
         <label>Camericano</label>
         <div class="flex gap-2 mb-1">
           <input type="number" id="camericanoQty" min="0" value="0" class="w-16 border text-center rounded">
           <select id="camericanoSize" class="flex-grow border rounded p-1">
-            <option value="glass">Glass 175ml (8 pts)</option>
-            <option value="pocket">Pocket 250ml (15 pts)</option>
-            <option value="500ml">500ml (30 pts)</option>
-            <option value="1l">1L (60 pts)</option>
+            <option value="glass" data-points="8">Glass 175ml (8 pts)</option>
+            <option value="pocket" data-points="15">Pocket 250ml (15 pts)</option>
+            <option value="500ml" data-points="30">500ml (30 pts)</option>
+            <option value="1l" data-points="60">1L (60 pts)</option>
           </select>
         </div>
       </div>
     </div>
 
-    <button onclick="showSummary()" class="w-full bg-green-700 text-white p-2 rounded mb-3">Redeem Selected</button>
+    <button onclick="redeemItems()" class="w-full bg-green-700 text-white p-2 rounded mb-3">Redeem Selected</button>
     <button onclick="backToTransaction()" class="w-full bg-gray-400 text-white p-2 rounded">← Back</button>
   </div>
 
-  <!-- (Keep your Summary Modal, Password Modal, and all script logic exactly same) -->
+  <div id="toast" class="toast hidden"></div>
 
-<script>
-  // Buyer + points + per-size summary
-  let currentBuyer = JSON.parse(sessionStorage.getItem("currentMember") || "{}");
-  let currentBuyerId = sessionStorage.getItem("currentBuyerId");
-  let totalPoints = 0; 
-  let redeemData = {};  
-  let sizeSummary = { glass: 0, pocket: 0, "500ml": 0, "1l": 0 };
+  <script>
+    let buyer = {};
+    const toast = document.getElementById("toast");
 
-  // ✅ Fix “No member found” issue: fallback to localStorage (in case sessionStorage cleared)
-  document.addEventListener("DOMContentLoaded", async () => {
-    if (!currentBuyer.name) {
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.remove("hidden");
+      setTimeout(() => toast.classList.add("hidden"), 4000);
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
       const buyerDataLS = localStorage.getItem("buyerInfo");
-      if (buyerDataLS) {
-        const buyer = JSON.parse(buyerDataLS);
-        currentBuyer = { name: buyer.name };
-        totalPoints = buyer.totalPoints;
-        sizeSummary = { 
-          glass: buyer.glass || 0, 
-          pocket: buyer.pocket || 0, 
-          "500ml": buyer.ml500 || 0, 
-          "1l": buyer.l1 || 0 
-        };
-
-        // show per-item summary on redeem.html
-        document.getElementById("buyerSummary").classList.remove("hidden");
-        document.getElementById("buyerNameDisplay").textContent = buyer.name;
-        document.getElementById("buyerTotalPoints").textContent = buyer.totalPoints;
-        document.getElementById("glassPoints").textContent = buyer.glass;
-        document.getElementById("pocketPoints").textContent = buyer.pocket;
-        document.getElementById("ml500Points").textContent = buyer.ml500;
-        document.getElementById("l1Points").textContent = buyer.l1;
-      } else {
+      if (!buyerDataLS) {
         alert("⚠️ No member found. Please go back to Transaction page.");
         window.location.href = "transaction.html";
         return;
       }
-    }
-  });
+      buyer = JSON.parse(buyerDataLS);
+      document.getElementById("buyerSummary").classList.remove("hidden");
+      document.getElementById("buyerNameDisplay").textContent = buyer.name;
+      document.getElementById("buyerTotalPoints").textContent = buyer.totalPoints;
+      document.getElementById("glassPoints").textContent = buyer.glass || 0;
+      document.getElementById("pocketPoints").textContent = buyer.pocket || 0;
+      document.getElementById("ml500Points").textContent = buyer.ml500 || 0;
+      document.getElementById("l1Points").textContent = buyer.l1 || 0;
+    });
 
-  // (Your existing JS logic continues below unchanged)
-</script>
+    function getEligibleTiers(size) {
+      if (size === "glass") return ["glass", "pocket", "500ml", "1l"];
+      if (size === "pocket") return ["pocket", "500ml", "1l"];
+      if (size === "500ml") return ["500ml", "1l"];
+      if (size === "1l") return ["1l"];
+    }
+
+    function redeemItems() {
+      const items = [
+        { name: "Copyaren", qty: +document.getElementById("copyarenQty").value, size: document.getElementById("copyarenSize").value, points: +document.getElementById("copyarenSize").selectedOptions[0].dataset.points },
+        { name: "Chocobara", qty: +document.getElementById("chocobaraQty").value, size: document.getElementById("chocobaraSize").value, points: +document.getElementById("chocobaraSize").selectedOptions[0].dataset.points },
+        { name: "Camericano", qty: +document.getElementById("camericanoQty").value, size: document.getElementById("camericanoSize").value, points: +document.getElementById("camericanoSize").selectedOptions[0].dataset.points }
+      ];
+
+      let totalDeducted = 0;
+      for (const item of items) {
+        if (item.qty <= 0) continue;
+        const cost = item.qty * item.points;
+        const eligible = getEligibleTiers(item.size);
+        let available = eligible.reduce((sum, s) => sum + (buyer[s === "500ml" ? "ml500" : s] || 0), 0);
+
+        if (available < cost) {
+          showToast(`❌ Not enough eligible points for ${item.name} ${item.size}.`);
+          return;
+        }
+
+        // Deduct points starting from the highest eligible
+        let remaining = cost;
+        for (let i = eligible.length - 1; i >= 0 && remaining > 0; i--) {
+          const key = eligible[i] === "500ml" ? "ml500" : eligible[i];
+          const used = Math.min(buyer[key], remaining);
+          buyer[key] -= used;
+          remaining -= used;
+        }
+        totalDeducted += cost;
+      }
+
+      buyer.totalPoints -= totalDeducted;
+      localStorage.setItem("buyerInfo", JSON.stringify(buyer));
+
+      // Update Firebase (assuming "members/<name>")
+      db.ref("members/" + buyer.name).update({
+        glass: buyer.glass,
+        pocket: buyer.pocket,
+        ml500: buyer.ml500,
+        l1: buyer.l1,
+        totalPoints: buyer.totalPoints
+      });
+
+      showToast(`✅ Redeemed successfully! Remaining — Glass: ${buyer.glass} | Pocket: ${buyer.pocket} | 500ml: ${buyer.ml500} | 1L: ${buyer.l1} | Total: ${buyer.totalPoints}`);
+      document.getElementById("glassPoints").textContent = buyer.glass;
+      document.getElementById("pocketPoints").textContent = buyer.pocket;
+      document.getElementById("ml500Points").textContent = buyer.ml500;
+      document.getElementById("l1Points").textContent = buyer.l1;
+      document.getElementById("buyerTotalPoints").textContent = buyer.totalPoints;
+    }
+
+    function backToTransaction() {
+      window.location.href = "transaction.html";
+    }
+  </script>
 </body>
 </html>
