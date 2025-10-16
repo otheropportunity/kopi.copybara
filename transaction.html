@@ -10,13 +10,32 @@
   <style>
     body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
     .card { background: white; border-radius: 12px; padding: 24px; max-width: 500px; margin: 50px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-    #toast { transition: all 0.4s ease; transform: translateY(50px); opacity: 0; }
-    #toast.show { opacity: 1; transform: translateY(0); }
+
+    /* ✅ Animated Toast */
+    #toast {
+      position: fixed;
+      bottom: 20px;
+      right: -300px;
+      background-color: #16a34a;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      font-size: 14px;
+      transition: all 0.5s ease;
+      opacity: 0;
+      z-index: 1000;
+    }
+    #toast.show {
+      right: 20px;
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
+
   <!-- ✅ Toast -->
-  <div id="toast" class="fixed bottom-5 right-5 bg-green-600 text-white px-4 py-2 rounded shadow-lg text-sm hidden"></div>
+  <div id="toast"></div>
 
   <div class="card">
     <h1 class="text-2xl font-bold text-center text-amber-800 mb-2">☕ Staff Transaction Panel</h1>
@@ -30,6 +49,7 @@
     </div>
 
     <div id="buyerInfo" class="hidden border-t pt-3">
+
       <!-- ✅ Buyer Summary -->
       <div id="buyerSummary" class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
         <h3 class="font-semibold text-amber-800 text-center mb-2">👤 Member Summary</h3>
@@ -143,22 +163,25 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-let currentBuyerId = null, currentBuyerName = "", currentBuyerPoints = 0, paymentType = null;
 
+let currentBuyerId = null;
+let currentBuyerName = "";
+let currentBuyerPoints = 0;
+let paymentType = null;
+
+/* ✅ Animated Toast */
 function showToast(msg, color="green") {
-  const t=document.getElementById("toast");
-  t.textContent=msg;
-  t.style.backgroundColor=(color==="red"?"#dc2626":"#16a34a");
-  t.classList.remove("hidden");
-  setTimeout(()=>t.classList.add("show"),10);
-  setTimeout(()=>t.classList.remove("show"),2800);
-  setTimeout(()=>t.classList.add("hidden"),3300);
+  const toast=document.getElementById("toast");
+  toast.textContent=msg;
+  toast.style.backgroundColor=color==="red"?"#dc2626":"#16a34a";
+  toast.classList.add("show");
+  setTimeout(()=>toast.classList.remove("show"),3000);
 }
 
 const prices = {
   copyaren: {175:10000,250:20000,500:40000,1000:80000},
   chocobara: {175:12000,250:24000,500:48000,1000:95000},
-  cameriano: {175:8000,250:15000,500:30000,1000:60000}
+  camericano: {175:8000,250:15000,500:30000,1000:60000}
 };
 
 document.addEventListener("DOMContentLoaded",()=>{
@@ -200,69 +223,87 @@ function searchBuyer(){
 }
 
 function calculateTotal(){
-  const items=[
-    {id:"copyaren",qty:+document.getElementById("copyarenQty").value,size:document.getElementById("copyarenSize").value},
-    {id:"chocobara",qty:+document.getElementById("chocobaraQty").value,size:document.getElementById("chocobaraSize").value},
-    {id:"camericano",qty:+document.getElementById("camericanoQty").value,size:document.getElementById("camericanoSize").value}
-  ];
-  let totalAmount=0,totalPoints=0,glass=0,pocket=0,ml500=0,l1=0;
-  items.forEach(it=>{
-    const p=prices[it.id][it.size];
-    totalAmount+=it.qty*p;
-    totalPoints+=it.qty;
-    if(it.size=="175")glass+=it.qty;
-    if(it.size=="250")pocket+=it.qty;
-    if(it.size=="500")ml500+=it.qty;
-    if(it.size=="1000")l1+=it.qty;
-  });
+  const cQ=+document.getElementById("copyarenQty").value||0;
+  const cS=document.getElementById("copyarenSize").value;
+  const bQ=+document.getElementById("chocobaraQty").value||0;
+  const bS=document.getElementById("chocobaraSize").value;
+  const aQ=+document.getElementById("camericanoQty").value||0;
+  const aS=document.getElementById("camericanoSize").value;
+
+  const totalAmount=cQ*prices.copyaren[cS]+bQ*prices.chocobara[bS]+aQ*prices.camericano[aS];
+  const totalPoints=cQ+bQ+aQ;
+
+  // 🧮 Track size-based summary
+  const summary={glass:0,pocket:0,ml500:0,l1:0};
+  function addSummary(size,qty){
+    if(size==="175") summary.glass+=qty;
+    else if(size==="250") summary.pocket+=qty;
+    else if(size==="500") summary.ml500+=qty;
+    else if(size==="1000") summary.l1+=qty;
+  }
+  addSummary(cS,cQ);
+  addSummary(bS,bQ);
+  addSummary(aS,aQ);
+
   document.getElementById("totalAmount").textContent=totalAmount.toLocaleString();
   document.getElementById("totalPoints").textContent=totalPoints;
-  document.getElementById("sumGlass").textContent=glass;
-  document.getElementById("sumPocket").textContent=pocket;
-  document.getElementById("sum500").textContent=ml500;
-  document.getElementById("sum1L").textContent=l1;
+  document.getElementById("sumGlass").textContent=summary.glass;
+  document.getElementById("sumPocket").textContent=summary.pocket;
+  document.getElementById("sum500").textContent=summary.ml500;
+  document.getElementById("sum1L").textContent=summary.l1;
+
   if(paymentType==="CASH"){
     const paid=+document.getElementById("cashPaid").value||0;
     const change=paid>0?Math.max(0,paid-totalAmount):0;
     document.getElementById("changeAmount").textContent=change.toLocaleString();
   }
-  return {totalAmount,totalPoints,glass,pocket,ml500,l1};
+
+  return {totalAmount,totalPoints,summary};
 }
 
 function submitTransaction(){
   if(!currentBuyerId) return showToast("Please search for a buyer first!","red");
   if(!paymentType) return showToast("Select payment type!","red");
-  const {totalAmount,totalPoints,glass,pocket,ml500,l1}=calculateTotal();
+
+  const {totalAmount,totalPoints,summary}=calculateTotal();
   if(totalAmount===0) return showToast("Please select at least one item!","red");
 
   db.ref("buyers/"+currentBuyerId).once("value").then(snap=>{
     const d=snap.val()||{};
-    const updated={
+    const newData={
       masterPoints:(d.masterPoints||0)+totalPoints,
-      summaryGlass:(d.summaryGlass||0)+glass,
-      summaryPocket:(d.summaryPocket||0)+pocket,
-      summary500ml:(d.summary500ml||0)+ml500,
-      summary1L:(d.summary1L||0)+l1
+      summaryGlass:(d.summaryGlass||0)+summary.glass,
+      summaryPocket:(d.summaryPocket||0)+summary.pocket,
+      summary500ml:(d.summary500ml||0)+summary.ml500,
+      summary1L:(d.summary1L||0)+summary.l1
     };
-    db.ref("buyers/"+currentBuyerId).update(updated).then(()=>{
-      document.getElementById("buyerTotalPoints").textContent=updated.masterPoints;
-      document.getElementById("glassPoints").textContent=updated.summaryGlass;
-      document.getElementById("pocketPoints").textContent=updated.summaryPocket;
-      document.getElementById("ml500Points").textContent=updated.summary500ml;
-      document.getElementById("l1Points").textContent=updated.summary1L;
-      showToast(`✅ Transaction saved for ${currentBuyerName} – +${glass} Glass, +${pocket} Pocket, +${ml500} 500ml, +${l1} 1L`);
+
+    db.ref("buyers/"+currentBuyerId).update(newData).then(()=>{
+      document.getElementById("buyerTotalPoints").textContent=newData.masterPoints;
+      document.getElementById("glassPoints").textContent=newData.summaryGlass;
+      document.getElementById("pocketPoints").textContent=newData.summaryPocket;
+      document.getElementById("ml500Points").textContent=newData.summary500ml;
+      document.getElementById("l1Points").textContent=newData.summary1L;
+
+      // 🧾 Show animated toast summary
+      showToast(`✅ ${currentBuyerName} bought Glass:${summary.glass}, Pocket:${summary.pocket}, 500ml:${summary.ml500}, 1L:${summary.l1}`, "green");
+
+      // Reset quantities
+      ["copyarenQty","chocobaraQty","camericanoQty"].forEach(id=>document.getElementById(id).value=0);
+      ["sumGlass","sumPocket","sum500","sum1L","totalAmount","totalPoints"].forEach(id=>document.getElementById(id).textContent="0");
     });
   });
 }
 
-function goToRedeem(){
-  if(!currentBuyerId) return showToast("Search buyer first!","red");
+function saveBuyerForRedeem(){
+  if(!currentBuyerId)return showToast("Search buyer first!","red");
   localStorage.setItem("buyerInfo",JSON.stringify({
     id:currentBuyerId,name:currentBuyerName,masterPoints:currentBuyerPoints
   }));
-  window.location.href="redeem.html";
+  return true;
 }
 
+function goToRedeem(){ if(saveBuyerForRedeem()) window.location.href="redeem.html"; }
 function logoutStaff(){sessionStorage.clear();window.location.href="index.html";}
 </script>
 </body>
