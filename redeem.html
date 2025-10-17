@@ -10,21 +10,34 @@
   <style>
     body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
     .card { background: white; border-radius: 12px; padding: 24px; max-width: 500px; margin: 50px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+
+    /* ✅ Toast styling */
     #toast {
-      position: fixed; bottom: 20px; right: -300px;
-      background-color: #16a34a; color: white;
-      padding: 10px 20px; border-radius: 8px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-      font-size: 14px; transition: all 0.5s ease; opacity: 0;
-      z-index: 1000;
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background-color: #16a34a; /* default green */
+      color: white;
+      padding: 12px 22px;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      font-size: 15px;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.4s ease;
+      z-index: 9999;
+      cursor: pointer;
     }
-    #toast.show { right: 20px; opacity: 1; }
+    #toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
   </style>
 </head>
 <body>
 
   <!-- ✅ Toast -->
-  <div id="toast"></div>
+  <div id="toast" onclick="hideToast()"></div>
 
   <div class="card">
     <h1 class="text-2xl font-bold text-center text-amber-800 mb-2">🎁 Redeem Points</h1>
@@ -63,7 +76,6 @@
         <option value="1l">1L</option>
       </select>
 
-      <!-- 🔹 Choose which point to use -->
       <label class="block font-semibold text-amber-700 mb-1">Use Point Type:</label>
       <select id="usePointSelect" class="w-full border p-2 rounded mb-2">
         <option value="">-- Select Point Type --</option>
@@ -101,17 +113,22 @@
       camericano: { glass: 8, pocket: 15, "500ml": 30, "1l": 60 }
     };
 
+    // ✅ Toast system (persistent until click)
     function showToast(msg, color="green") {
       const toast = document.getElementById("toast");
       toast.textContent = msg;
-      toast.style.backgroundColor = color === "red" ? "#dc2626" : "#16a34a";
+      const colors = { red: "#dc2626", green: "#16a34a", yellow: "#eab308" };
+      toast.style.backgroundColor = colors[color] || "#16a34a";
       toast.classList.add("show");
-      setTimeout(()=>toast.classList.remove("show"), 3000);
+    }
+    function hideToast() {
+      const toast = document.getElementById("toast");
+      toast.classList.remove("show");
     }
 
     document.addEventListener("DOMContentLoaded", () => {
       const info = JSON.parse(localStorage.getItem("buyerInfo"));
-      if (!info) { showToast("No buyer selected!","red"); setTimeout(()=>window.location.href="transaction.html", 1500); return; }
+      if (!info) { showToast("⚠️ No buyer selected!","red"); setTimeout(()=>window.location.href="transaction.html",1500); return; }
       buyerId = info.id;
       buyerName = info.name;
       document.getElementById("buyerName").textContent = buyerName;
@@ -165,15 +182,15 @@
       const prod = document.getElementById("productSelect").value;
       const size = document.getElementById("sizeSelect").value;
       const useType = document.getElementById("usePointSelect").value;
-      if (!prod || !size || !useType) return showToast("Select product, size, and point type","red");
+      if (!prod || !size || !useType) return showToast("⚠️ Please select product, size, and point type","red");
 
       const cost = pointsTable[prod][size];
       const totalPts = buyerData.masterPoints || 0;
       const currentPts = buyerData[`summary${useType.charAt(0).toUpperCase() + useType.slice(1)}`] || 0;
 
-      if (!validHierarchy(size, useType)) return showToast("This point type cannot redeem this size!","red");
-      if (totalPts < cost) return showToast("Not enough total points!","red");
-      if (currentPts < cost) return showToast("Not enough points in selected type!","red");
+      if (!validHierarchy(size, useType)) return showToast("❌ This point type cannot redeem this size!","red");
+      if (totalPts < cost) return showToast("❌ Not enough total points!","red");
+      if (currentPts < cost) return showToast("❌ Not enough points in selected type!","red");
 
       if (!confirm(`Redeem 1 ${prod} (${size}) using ${useType.toUpperCase()} points for ${cost}?`)) return;
 
@@ -184,8 +201,16 @@
       db.ref("buyers/" + buyerId).update(update).then(() => {
         buyerData = { ...buyerData, ...update };
         updateSummaryDisplay();
-        showToast(`✅ Redeemed 1 ${prod} (${size}) using ${useType.toUpperCase()} points!`);
 
+        showToast(`✅ Redeemed 1 ${prod} (${size}) using ${useType.toUpperCase()} points!`,"green");
+
+        // Reset selects after success
+        document.getElementById("productSelect").value = "";
+        document.getElementById("sizeSelect").value = "";
+        document.getElementById("usePointSelect").value = "";
+        document.getElementById("costDisplay").textContent = "";
+
+        // Log redemption
         const redeemHistory = {
           buyer: buyerName,
           product: prod,
