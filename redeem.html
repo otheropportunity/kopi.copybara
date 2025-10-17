@@ -63,6 +63,16 @@
         <option value="1l">1L</option>
       </select>
 
+      <!-- 🔹 Choose which point to use -->
+      <label class="block font-semibold text-amber-700 mb-1">Use Point Type:</label>
+      <select id="usePointSelect" class="w-full border p-2 rounded mb-2">
+        <option value="">-- Select Point Type --</option>
+        <option value="glass">Glass Points</option>
+        <option value="pocket">Pocket Points</option>
+        <option value="500ml">500ml Points</option>
+        <option value="1l">1L Points</option>
+      </select>
+
       <p id="costDisplay" class="text-center text-sm text-amber-700 font-semibold mt-1"></p>
     </div>
 
@@ -107,7 +117,6 @@
       document.getElementById("buyerName").textContent = buyerName;
       loadBuyerData();
 
-      // 🔹 Show cost dynamically
       document.getElementById("productSelect").addEventListener("change", updateCostDisplay);
       document.getElementById("sizeSelect").addEventListener("change", updateCostDisplay);
     });
@@ -119,9 +128,7 @@
       if (prod && size) {
         const cost = pointsTable[prod][size];
         costEl.textContent = `🔸 Redeem cost: ${cost} pts`;
-      } else {
-        costEl.textContent = "";
-      }
+      } else costEl.textContent = "";
     }
 
     function loadBuyerData() {
@@ -144,55 +151,46 @@
       document.getElementById("totalPoints").textContent = t;
     }
 
-    function canRedeem(size) {
-      const g = buyerData.summaryGlass || 0;
-      const p = buyerData.summaryPocket || 0;
-      const m = buyerData.summary500ml || 0;
-      const l = buyerData.summary1L || 0;
-      if (size === "glass" && g > 0) return true;
-      if (size === "pocket" && (p > 0 || m > 0 || l > 0)) return true;
-      if (size === "500ml" && (m > 0 || l > 0)) return true;
-      if (size === "1l" && l > 0) return true;
-      return false;
+    function validHierarchy(size, useType) {
+      const allowed = {
+        glass: ["glass", "pocket", "500ml", "1l"],
+        pocket: ["pocket", "500ml", "1l"],
+        "500ml": ["500ml", "1l"],
+        "1l": ["1l"]
+      };
+      return allowed[size].includes(useType);
     }
 
     function redeemItem() {
       const prod = document.getElementById("productSelect").value;
       const size = document.getElementById("sizeSelect").value;
-      if (!prod || !size) return showToast("Select both product and size","red");
+      const useType = document.getElementById("usePointSelect").value;
+      if (!prod || !size || !useType) return showToast("Select product, size, and point type","red");
 
       const cost = pointsTable[prod][size];
       const totalPts = buyerData.masterPoints || 0;
-      const g = buyerData.summaryGlass || 0;
-      const p = buyerData.summaryPocket || 0;
-      const m = buyerData.summary500ml || 0;
-      const l = buyerData.summary1L || 0;
+      const currentPts = buyerData[`summary${useType.charAt(0).toUpperCase() + useType.slice(1)}`] || 0;
 
+      if (!validHierarchy(size, useType)) return showToast("This point type cannot redeem this size!","red");
       if (totalPts < cost) return showToast("Not enough total points!","red");
-      if (!canRedeem(size)) return showToast("Insufficient eligible points for this size!","red");
+      if (currentPts < cost) return showToast("Not enough points in selected type!","red");
 
-      // ✅ Confirmation dialog
-      if (!confirm(`Are you sure you want to redeem 1 ${prod} (${size}) for ${cost} points?`)) return;
+      if (!confirm(`Redeem 1 ${prod} (${size}) using ${useType.toUpperCase()} points for ${cost}?`)) return;
 
-      // ✅ Deduct logic (Option B)
       let update = {};
-      if (size === "glass") update.summaryGlass = Math.max(0, g - cost);
-      if (size === "pocket") update.summaryPocket = Math.max(0, p - cost);
-      if (size === "500ml") update.summary500ml = Math.max(0, m - cost);
-      if (size === "1l") update.summary1L = Math.max(0, l - cost);
-      update.masterPoints = Math.max(0, totalPts - cost);
+      update[`summary${useType.charAt(0).toUpperCase() + useType.slice(1)}`] = currentPts - cost;
+      update.masterPoints = totalPts - cost;
 
       db.ref("buyers/" + buyerId).update(update).then(() => {
         buyerData = { ...buyerData, ...update };
         updateSummaryDisplay();
-        const msg = `✅ Redeemed 1 ${prod} (${size.toUpperCase()} - ${cost} pts). Remaining Total: ${update.masterPoints} pts`;
-        showToast(msg, "green");
+        showToast(`✅ Redeemed 1 ${prod} (${size}) using ${useType.toUpperCase()} points!`);
 
-        // 🧾 Save to history
         const redeemHistory = {
           buyer: buyerName,
           product: prod,
           size: size,
+          usedType: useType,
           pointsUsed: cost,
           timestamp: new Date().toISOString(),
           staff: sessionStorage.getItem("staffName") || "Unknown"
