@@ -9,21 +9,14 @@
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
 </head>
 <body class="bg-yellow-50 flex justify-center items-center min-h-screen">
-  <div class="bg-white rounded-2xl shadow-md p-6 w-full max-w-2xl">
-    <h2 class="text-center text-2xl font-bold text-yellow-800 mb-2">🧾 Buyer Activity History</h2>
-    <p class="text-center text-sm text-gray-500 mb-4">All purchase & redeem records</p>
+  <div class="bg-white rounded-2xl shadow-md p-6 w-full max-w-6xl">
+    <h2 class="text-center text-2xl font-bold text-yellow-800 mb-2">🧾 Buyer Transaction & Redeem History</h2>
+    <p class="text-center text-sm text-gray-500 mb-4">Complete purchase & redeem logs</p>
 
     <!-- Buyer Summary -->
     <div id="buyerSummary" class="bg-yellow-100 border border-yellow-300 rounded-xl p-3 mb-4 text-center text-sm">
       <p><span class="font-bold text-yellow-800">Buyer:</span> <span id="buyerName">Loading...</span></p>
-      <p class="mt-1">
-        <span class="font-bold text-yellow-800">Remaining Points:</span>
-        <span id="pointsGlass">Glass: 0</span> |
-        <span id="pointsPocket">Pocket: 0</span> |
-        <span id="points500ml">500ml: 0</span> |
-        <span id="points1l">1L: 0</span>
-      </p>
-      <p id="totalPoints" class="mt-1 font-semibold text-yellow-700">Total: 0 pts</p>
+      <p id="totalPoints" class="mt-1 font-semibold text-yellow-700">Total Points: 0</p>
     </div>
 
     <!-- Filter buttons -->
@@ -41,16 +34,22 @@
       <table class="min-w-full border border-gray-300 text-sm text-gray-700">
         <thead class="bg-yellow-200 text-yellow-900">
           <tr>
-            <th class="border px-2 py-1">Date</th>
+            <th class="border px-2 py-1">Date & Time</th>
+            <th class="border px-2 py-1">Buyer ID</th>
+            <th class="border px-2 py-1">Buyer Name</th>
+            <th class="border px-2 py-1">Information / Item</th>
+            <th class="border px-2 py-1">Payment Type</th>
+            <th class="border px-2 py-1">Paid Amount</th>
+            <th class="border px-2 py-1">Change</th>
+            <th class="border px-2 py-1">Total Amount</th>
+            <th class="border px-2 py-1">Points Earned/Used</th>
+            <th class="border px-2 py-1">Updated Total Points</th>
+            <th class="border px-2 py-1">Staff</th>
             <th class="border px-2 py-1">Type</th>
-            <th class="border px-2 py-1">Item</th>
-            <th class="border px-2 py-1">Size</th>
-            <th class="border px-2 py-1">Qty</th>
-            <th class="border px-2 py-1">Points</th>
           </tr>
         </thead>
         <tbody id="historyBody" class="text-center bg-white">
-          <tr><td colspan="6" class="py-3 text-gray-400">Loading...</td></tr>
+          <tr><td colspan="12" class="py-3 text-gray-400">Loading...</td></tr>
         </tbody>
       </table>
     </div>
@@ -84,59 +83,69 @@
     const buyerName = buyerInfo.name || sessionStorage.getItem("buyerName") || "Unknown Buyer";
     document.getElementById("buyerName").innerText = buyerName;
 
-    // 🟢 Load data
     async function loadHistory() {
+      const tbody = document.getElementById("historyBody");
       if (!buyerId) {
-        document.getElementById("historyBody").innerHTML = `<tr><td colspan="6" class="py-3 text-red-500">No buyer selected.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="12" class="py-3 text-red-500">No buyer selected.</td></tr>`;
         return;
       }
 
       // Fetch buyer info
       const buyerSnap = await db.ref(`buyers/${buyerId}`).get();
       const buyer = buyerSnap.val() || {};
-      document.getElementById("pointsGlass").innerText = `Glass: ${buyer.summaryGlass || 0}`;
-      document.getElementById("pointsPocket").innerText = `Pocket: ${buyer.summaryPocket || 0}`;
-      document.getElementById("points500ml").innerText = `500ml: ${buyer.summary500ml || 0}`;
-      document.getElementById("points1l").innerText = `1L: ${buyer.summary1L || 0}`;
-      const total = buyer.masterPoints || 0;
-      document.getElementById("totalPoints").innerText = `Total: ${total} pts`;
+      document.getElementById("totalPoints").innerText = `Total Points: ${buyer.masterPoints || 0}`;
 
-      // Fetch transactions
+      // Fetch both transaction and redeem history
       const [transSnap, redeemSnap] = await Promise.all([
         db.ref(`transactions`).orderByChild("buyerId").equalTo(buyerId).get(),
-        db.ref(`redeemHistory`).orderByChild("buyerId").equalTo(buyerId).get()
+        db.ref(`redeemHistory`).orderByChild("buyer").equalTo(buyerId).get()
       ]);
 
       historyData = [];
 
+      // 🟢 Purchase transactions
       if (transSnap.exists()) {
-        transSnap.forEach((t) => {
-          const data = t.val();
+        transSnap.forEach(t => {
+          const d = t.val();
           historyData.push({
-            date: data.timestamp || data.date || "-",
-            type: "Purchase",
-            item: data.itemName || "-",
-            size: data.size || "-",
-            qty: data.quantity || 1,
-            points: data.pointsEarned || 0
+            date: d.dateTime || "-",
+            buyerId: d.buyerId || "-",
+            buyerName: d.buyerName || "-",
+            info: d.info || "-", // optional info if you saved
+            paymentType: d.paymentType || "-",
+            paid: d.paidAmount || 0,
+            change: d.changeAmount || 0,
+            totalAmount: d.totalAmount || 0,
+            points: d.totalPointsEarned || 0,
+            updatedPoints: d.updatedMasterPoints || 0,
+            staff: d.staff || "-",
+            type: "Purchase"
           });
         });
       }
 
+      // 🔴 Redeem history
       if (redeemSnap.exists()) {
-        redeemSnap.forEach((r) => {
-          const data = r.val();
+        redeemSnap.forEach(r => {
+          const d = r.val();
           historyData.push({
-            date: data.timestamp || data.date || "-",
-            type: "Redeem",
-            item: data.product || "-",
-            size: data.size || "-",
-            qty: 1,
-            points: `-${data.pointsUsed || 0}`
+            date: d.timestamp || "-",
+            buyerId: d.buyer || "-",
+            buyerName: buyerName,
+            info: `${d.product || '-'} (${d.size || '-'})`,
+            paymentType: "-",
+            paid: "-",
+            change: "-",
+            totalAmount: "-",
+            points: `-${d.pointsUsed || 0}`,
+            updatedPoints: buyer.masterPoints || 0,
+            staff: d.staff || "-",
+            type: "Redeem"
           });
         });
       }
 
+      // Sort newest first
       historyData.sort((a, b) => new Date(b.date) - new Date(a.date));
       renderTable(historyData);
     }
@@ -144,23 +153,29 @@
     function renderTable(data) {
       const tbody = document.getElementById("historyBody");
       if (data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="py-3 text-gray-400">No history found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="12" class="py-3 text-gray-400">No history found.</td></tr>`;
         return;
       }
 
       tbody.innerHTML = data.map(h => `
         <tr class="${h.type === 'Redeem' ? 'bg-red-50' : 'bg-green-50'}">
           <td class="border px-2 py-1">${h.date}</td>
-          <td class="border px-2 py-1 font-semibold ${h.type === 'Redeem' ? 'text-red-700' : 'text-green-700'}">${h.type}</td>
-          <td class="border px-2 py-1">${h.item}</td>
-          <td class="border px-2 py-1">${h.size}</td>
-          <td class="border px-2 py-1">${h.qty}</td>
+          <td class="border px-2 py-1">${h.buyerId}</td>
+          <td class="border px-2 py-1">${h.buyerName}</td>
+          <td class="border px-2 py-1">${h.info}</td>
+          <td class="border px-2 py-1">${h.paymentType}</td>
+          <td class="border px-2 py-1">${h.paid}</td>
+          <td class="border px-2 py-1">${h.change}</td>
+          <td class="border px-2 py-1">${h.totalAmount}</td>
           <td class="border px-2 py-1">${h.points}</td>
+          <td class="border px-2 py-1">${h.updatedPoints}</td>
+          <td class="border px-2 py-1">${h.staff}</td>
+          <td class="border px-2 py-1 font-semibold ${h.type === 'Redeem' ? 'text-red-700' : 'text-green-700'}">${h.type}</td>
         </tr>
       `).join("");
     }
 
-    // 🟡 Filters
+    // Filter buttons
     document.getElementById("showAllBtn").onclick = () => renderTable(historyData);
     document.getElementById("purchaseBtn").onclick = () => renderTable(historyData.filter(h => h.type === "Purchase"));
     document.getElementById("redeemBtn").onclick = () => renderTable(historyData.filter(h => h.type === "Redeem"));
