@@ -6,7 +6,6 @@
   <title>Buyer History</title>
   <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-database-compat.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
 </head>
 <body class="bg-yellow-50 flex justify-center items-center min-h-screen">
@@ -14,6 +13,7 @@
     <h2 class="text-center text-2xl font-bold text-yellow-800 mb-2">🧾 Buyer Activity History</h2>
     <p class="text-center text-sm text-gray-500 mb-4">All purchase & redeem records</p>
 
+    <!-- Buyer Summary -->
     <div id="buyerSummary" class="bg-yellow-100 border border-yellow-300 rounded-xl p-3 mb-4 text-center text-sm">
       <p><span class="font-bold text-yellow-800">Buyer:</span> <span id="buyerName">Loading...</span></p>
       <p class="mt-1">
@@ -26,19 +26,17 @@
       <p id="totalPoints" class="mt-1 font-semibold text-yellow-700">Total: 0 pts</p>
     </div>
 
-    <!-- Filter & Download Buttons -->
+    <!-- Filter buttons -->
     <div class="flex justify-between items-center mb-3">
       <div class="space-x-2">
-        <button id="showAllBtn" class="bg-yellow-500 text-white px-3 py-1 rounded-lg hover:bg-yellow-600 text-sm font-semibold">Show All</button>
-        <button id="showPurchaseBtn" class="bg-green-500 text-white px-3 py-1 rounded-lg hover:bg-green-600 text-sm font-semibold">Purchase</button>
-        <button id="showRedeemBtn" class="bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-600 text-sm font-semibold">Redeem</button>
+        <button id="showAllBtn" class="bg-yellow-400 hover:bg-yellow-500 text-white px-3 py-1 rounded-md text-sm font-semibold">Show All</button>
+        <button id="purchaseBtn" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-md text-sm font-semibold">Purchase</button>
+        <button id="redeemBtn" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-sm font-semibold">Redeem</button>
       </div>
-      <button id="downloadBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-lg text-sm font-semibold">
-        ⬇️ Download .xlsx
-      </button>
+      <button id="downloadBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md text-sm font-semibold">📥 Download .xlsx</button>
     </div>
 
-    <!-- Table -->
+    <!-- History Table -->
     <div class="overflow-x-auto">
       <table class="min-w-full border border-gray-300 text-sm text-gray-700">
         <thead class="bg-yellow-200 text-yellow-900">
@@ -66,55 +64,61 @@
   </div>
 
   <script>
-    // 🔥 Firebase Setup
+    // 🔧 Firebase setup
     const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-      databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_PROJECT_ID.appspot.com",
-      messagingSenderId: "YOUR_SENDER_ID",
-      appId: "YOUR_APP_ID"
+      apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
+      authDomain: "kopi-copybara.firebaseapp.com",
+      databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "kopi-copybara",
+      storageBucket: "kopi-copybara.appspot.com",
+      messagingSenderId: "729875984861",
+      appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const buyerName = sessionStorage.getItem("buyerName") || "Unknown Buyer";
+    let historyData = [];
+
+    const buyerInfo = JSON.parse(localStorage.getItem("buyerInfo")) || {};
+    const buyerId = buyerInfo.id || sessionStorage.getItem("buyerId");
+    const buyerName = buyerInfo.name || sessionStorage.getItem("buyerName") || "Unknown Buyer";
     document.getElementById("buyerName").innerText = buyerName;
 
-    let allHistory = [];
-
+    // 🟢 Load data
     async function loadHistory() {
-      const buyerId = sessionStorage.getItem("buyerId");
       if (!buyerId) {
         document.getElementById("historyBody").innerHTML = `<tr><td colspan="6" class="py-3 text-red-500">No buyer selected.</td></tr>`;
         return;
       }
 
+      // Fetch buyer info
       const buyerSnap = await db.ref(`buyers/${buyerId}`).get();
       const buyer = buyerSnap.val() || {};
-      document.getElementById("pointsGlass").innerText = `Glass: ${buyer.glass || 0}`;
-      document.getElementById("pointsPocket").innerText = `Pocket: ${buyer.pocket || 0}`;
-      document.getElementById("points500ml").innerText = `500ml: ${buyer["500ml"] || 0}`;
-      document.getElementById("points1l").innerText = `1L: ${buyer["1l"] || 0}`;
-      const total = (buyer.glass || 0) + (buyer.pocket || 0) + (buyer["500ml"] || 0) + (buyer["1l"] || 0);
+      document.getElementById("pointsGlass").innerText = `Glass: ${buyer.summaryGlass || 0}`;
+      document.getElementById("pointsPocket").innerText = `Pocket: ${buyer.summaryPocket || 0}`;
+      document.getElementById("points500ml").innerText = `500ml: ${buyer.summary500ml || 0}`;
+      document.getElementById("points1l").innerText = `1L: ${buyer.summary1L || 0}`;
+      const total = buyer.masterPoints || 0;
       document.getElementById("totalPoints").innerText = `Total: ${total} pts`;
 
-      const transactionsSnap = await db.ref(`transactions`).orderByChild("buyerId").equalTo(buyerId).get();
-      const redeemSnap = await db.ref(`redeemHistory`).orderByChild("buyerId").equalTo(buyerId).get();
+      // Fetch transactions
+      const [transSnap, redeemSnap] = await Promise.all([
+        db.ref(`transactions`).orderByChild("buyerId").equalTo(buyerId).get(),
+        db.ref(`redeemHistory`).orderByChild("buyerId").equalTo(buyerId).get()
+      ]);
 
-      const history = [];
+      historyData = [];
 
-      if (transactionsSnap.exists()) {
-        transactionsSnap.forEach((t) => {
+      if (transSnap.exists()) {
+        transSnap.forEach((t) => {
           const data = t.val();
-          history.push({
-            date: data.date || "-",
+          historyData.push({
+            date: data.timestamp || data.date || "-",
             type: "Purchase",
             item: data.itemName || "-",
             size: data.size || "-",
             qty: data.quantity || 1,
-            points: data.pointsEarned || 0,
+            points: data.pointsEarned || 0
           });
         });
       }
@@ -122,28 +126,29 @@
       if (redeemSnap.exists()) {
         redeemSnap.forEach((r) => {
           const data = r.val();
-          history.push({
-            date: data.date || "-",
+          historyData.push({
+            date: data.timestamp || data.date || "-",
             type: "Redeem",
-            item: data.item || "-",
+            item: data.product || "-",
             size: data.size || "-",
-            qty: data.quantity || 1,
-            points: `-${data.pointsUsed || 0}`,
+            qty: 1,
+            points: `-${data.pointsUsed || 0}`
           });
         });
       }
 
-      allHistory = history.sort((a, b) => new Date(b.date) - new Date(a.date));
-      renderHistory(allHistory);
+      historyData.sort((a, b) => new Date(b.date) - new Date(a.date));
+      renderTable(historyData);
     }
 
-    function renderHistory(list) {
+    function renderTable(data) {
       const tbody = document.getElementById("historyBody");
-      if (list.length === 0) {
+      if (data.length === 0) {
         tbody.innerHTML = `<tr><td colspan="6" class="py-3 text-gray-400">No history found.</td></tr>`;
         return;
       }
-      tbody.innerHTML = list.map(h => `
+
+      tbody.innerHTML = data.map(h => `
         <tr class="${h.type === 'Redeem' ? 'bg-red-50' : 'bg-green-50'}">
           <td class="border px-2 py-1">${h.date}</td>
           <td class="border px-2 py-1 font-semibold ${h.type === 'Redeem' ? 'text-red-700' : 'text-green-700'}">${h.type}</td>
@@ -155,19 +160,10 @@
       `).join("");
     }
 
-    // 🔄 Filter Buttons
-    document.getElementById("showAllBtn").onclick = () => renderHistory(allHistory);
-    document.getElementById("showPurchaseBtn").onclick = () => renderHistory(allHistory.filter(h => h.type === "Purchase"));
-    document.getElementById("showRedeemBtn").onclick = () => renderHistory(allHistory.filter(h => h.type === "Redeem"));
-
-    // ⬇️ Download .xlsx
-    document.getElementById("downloadBtn").onclick = () => {
-      if (allHistory.length === 0) return alert("No data to export.");
-      const ws = XLSX.utils.json_to_sheet(allHistory);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "History");
-      XLSX.writeFile(wb, `${buyerName}_history.xlsx`);
-    };
+    // 🟡 Filters
+    document.getElementById("showAllBtn").onclick = () => renderTable(historyData);
+    document.getElementById("purchaseBtn").onclick = () => renderTable(historyData.filter(h => h.type === "Purchase"));
+    document.getElementById("redeemBtn").onclick = () => renderTable(historyData.filter(h => h.type === "Redeem"));
 
     loadHistory();
   </script>
