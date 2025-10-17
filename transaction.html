@@ -49,20 +49,13 @@
     </div>
 
     <div id="buyerInfo" class="hidden border-t pt-3">
-
       <!-- ✅ Buyer Summary -->
       <div id="buyerSummary" class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
         <h3 class="font-semibold text-amber-800 text-center mb-2">👤 Member Summary</h3>
         <p class="text-center mb-2">Name: <span id="buyerNameDisplay" class="font-bold text-amber-900">-</span></p>
         <p class="text-center mb-3">Total Points: <span id="buyerTotalPoints" class="font-bold text-green-700">0</span></p>
-        <div class="grid grid-cols-2 gap-1 text-sm text-center">
-          <p>Glass: <span id="glassPoints" class="font-bold text-amber-900">0</span></p>
-          <p>Pocket: <span id="pocketPoints" class="font-bold text-amber-900">0</span></p>
-          <p>500ml: <span id="ml500Points" class="font-bold text-amber-900">0</span></p>
-          <p>1L: <span id="l1Points" class="font-bold text-amber-900">0</span></p>
-        </div>
       </div>
-      
+
       <!-- 🔽 Product Selection Section -->
       <h3 class="font-semibold mb-2 text-amber-800">Select Items:</h3>
 
@@ -158,7 +151,7 @@ let currentBuyerName = "";
 let currentBuyerPoints = 0;
 let paymentType = null;
 
-/* ✅ Animated Toast */
+/* ✅ Toast Function */
 function showToast(msg, color="green") {
   const toast=document.getElementById("toast");
   toast.textContent=msg;
@@ -199,10 +192,6 @@ function searchBuyer(){
         currentBuyerPoints=d.masterPoints||0;
         document.getElementById("buyerNameDisplay").innerText=currentBuyerName;
         document.getElementById("buyerTotalPoints").innerText=currentBuyerPoints;
-        document.getElementById("glassPoints").innerText=d.summaryGlass||0;
-        document.getElementById("pocketPoints").innerText=d.summaryPocket||0;
-        document.getElementById("ml500Points").innerText=d.summary500ml||0;
-        document.getElementById("l1Points").innerText=d.summary1L||0;
         document.getElementById("buyerInfo").classList.remove("hidden");
         showToast(`Buyer found: ${currentBuyerName}`);
       }
@@ -222,73 +211,57 @@ function calculateTotal(){
   const totalAmount=cQ*prices.copyaren[cS]+bQ*prices.chocobara[bS]+aQ*prices.camericano[aS];
   const totalPoints=cQ+bQ+aQ;
 
-  // 🧮 Track size-based summary
-  const summary={glass:0,pocket:0,ml500:0,l1:0};
-  function addSummary(size,qty){
-    if(size==="175") summary.glass+=qty;
-    else if(size==="250") summary.pocket+=qty;
-    else if(size==="500") summary.ml500+=qty;
-    else if(size==="1000") summary.l1+=qty;
-  }
-  addSummary(cS,cQ);
-  addSummary(bS,bQ);
-  addSummary(aS,aQ);
-
-  document.getElementById("totalAmount").textContent=totalAmount.toLocaleString();
-  document.getElementById("totalPoints").textContent=totalPoints;
-  document.getElementById("sumGlass").textContent=summary.glass;
-  document.getElementById("sumPocket").textContent=summary.pocket;
-  document.getElementById("sum500").textContent=summary.ml500;
-  document.getElementById("sum1L").textContent=summary.l1;
-
   if(paymentType==="CASH"){
     const paid=+document.getElementById("cashPaid").value||0;
     const change=paid>0?Math.max(0,paid-totalAmount):0;
     document.getElementById("changeAmount").textContent=change.toLocaleString();
   }
 
-  return {totalAmount,totalPoints,summary};
+  document.getElementById("totalAmount").textContent=totalAmount.toLocaleString();
+  document.getElementById("totalPoints").textContent=totalPoints;
+  return {totalAmount,totalPoints,cQ,cS,bQ,bS,aQ,aS};
 }
 
 function submitTransaction(){
   if(!currentBuyerId) return showToast("Please search for a buyer first!","red");
   if(!paymentType) return showToast("Select payment type!","red");
 
-  const {totalAmount,totalPoints,summary}=calculateTotal();
+  const {totalAmount,totalPoints,cQ,cS,bQ,bS,aQ,aS}=calculateTotal();
   if(totalAmount===0) return showToast("Please select at least one item!","red");
 
-  db.ref("buyers/"+currentBuyerId).once("value").then(snap=>{
-    const d=snap.val()||{};
-    const newData={
-      masterPoints:(d.masterPoints||0)+totalPoints,
-      summaryGlass:(d.summaryGlass||0)+summary.glass,
-      summaryPocket:(d.summaryPocket||0)+summary.pocket,
-      summary500ml:(d.summary500ml||0)+summary.ml500,
-      summary1L:(d.summary1L||0)+summary.l1
-    };
+  const staffName=sessionStorage.getItem("staffName")||"Unknown";
+  const timestamp=new Date().toISOString();
 
-    db.ref("buyers/"+currentBuyerId).update(newData).then(()=>{
-      document.getElementById("buyerTotalPoints").textContent=newData.masterPoints;
-      document.getElementById("glassPoints").textContent=newData.summaryGlass;
-      document.getElementById("pocketPoints").textContent=newData.summaryPocket;
-      document.getElementById("ml500Points").textContent=newData.summary500ml;
-      document.getElementById("l1Points").textContent=newData.summary1L;
+  const transactionData={
+    buyerId:currentBuyerId,
+    buyerName:currentBuyerName,
+    staffName,
+    paymentType,
+    totalAmount,
+    totalPoints,
+    date:timestamp,
+    details:{
+      copyaren:{qty:cQ,size:cS},
+      chocobara:{qty:bQ,size:bS},
+      cameriano:{qty:aQ,size:aS}
+    }
+  };
 
-      // 🧾 Show animated toast summary
-      showToast(`✅ ${currentBuyerName} bought Glass:${summary.glass}, Pocket:${summary.pocket}, 500ml:${summary.ml500}, 1L:${summary.l1}`, "green");
-
-      // Reset quantities
-      ["copyarenQty","chocobaraQty","camericanoQty"].forEach(id=>document.getElementById(id).value=0);
-      ["sumGlass","sumPocket","sum500","sum1L","totalAmount","totalPoints"].forEach(id=>document.getElementById(id).textContent="0");
-    });
+  db.ref("transactions").push(transactionData).then(()=>{
+    showToast(`✅ Transaction saved for ${currentBuyerName}`, "green");
+    ["copyarenQty","chocobaraQty","camericanoQty"].forEach(id=>document.getElementById(id).value=0);
+    document.getElementById("totalAmount").textContent="0";
+    document.getElementById("totalPoints").textContent="0";
+    document.getElementById("cashPaid").value="";
+    document.getElementById("changeAmount").textContent="0";
+  }).catch(()=>{
+    showToast("Failed to save transaction!","red");
   });
 }
 
 function saveBuyerForRedeem(){
   if(!currentBuyerId)return showToast("Search buyer first!","red");
-  localStorage.setItem("buyerInfo",JSON.stringify({
-    id:currentBuyerId,name:currentBuyerName,masterPoints:currentBuyerPoints
-  }));
+  localStorage.setItem("buyerInfo",JSON.stringify({id:currentBuyerId,name:currentBuyerName,masterPoints:currentBuyerPoints}));
   return true;
 }
 
