@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coffee Loyalty - Redeem Points</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+  <style>
+    body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
+    .card { background: white; border-radius: 12px; padding: 24px; max-width: 500px; margin: 50px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+
+    /* ✅ Manual toast */
+    #toast {
+      position: fixed; bottom: 20px; right: 20px;
+      background-color: #16a34a; color: white;
+      padding: 12px 18px; border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      font-size: 15px; z-index: 1000; display: none;
+      align-items: center; justify-content: space-between;
+      gap: 10px;
+    }
+    #toast button {
+      background: white; color: #16a34a; border: none;
+      border-radius: 5px; padding: 4px 10px; cursor: pointer;
+      font-weight: bold;
+    }
+    #toast button:hover { background: #dcfce7; }
+  </style>
+</head>
+<body>
+
+  <!-- ✅ Toast -->
+  <div id="toast">
+    <span id="toastMessage">Redeemed successfully!</span>
+    <button id="toastClose">OK</button>
+  </div>
+
+  <div class="card">
+    <h1 class="text-2xl font-bold text-center text-amber-800 mb-2">🎁 Redeem Points</h1>
+    <h2 class="text-lg font-semibold text-center mb-4 text-amber-700">
+      Buyer: <span id="buyerName" class="font-bold text-amber-900">-</span>
+    </h2>
+
+    <!-- ✅ Buyer Summary -->
+    <div id="buyerSummary" class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+      <h3 class="font-semibold text-amber-800 text-center mb-2">☕ Points Summary</h3>
+      <div class="grid grid-cols-2 gap-1 text-sm text-center">
+        <p>Glass: <span id="glassPoints">0</span></p>
+        <p>Pocket: <span id="pocketPoints">0</span></p>
+        <p>500ml: <span id="ml500Points">0</span></p>
+        <p>1L: <span id="l1Points">0</span></p>
+      </div>
+      <p class="text-center mt-2 font-bold">Total: <span id="totalPoints">0</span> pts</p>
+    </div>
+
+    <!-- ✅ Redeem Options -->
+    <div class="mb-4">
+      <label class="block font-semibold text-amber-700 mb-1">Select Item to Redeem:</label>
+      <select id="productSelect" class="w-full border p-2 rounded mb-2">
+        <option value="">-- Select Product --</option>
+        <option value="copyaren">Copyaren</option>
+        <option value="chocobara">Chocobara</option>
+        <option value="camericano">Camericano</option>
+      </select>
+
+      <label class="block font-semibold text-amber-700 mb-1">Select Size:</label>
+      <select id="sizeSelect" class="w-full border p-2 rounded mb-2">
+        <option value="">-- Select Size --</option>
+        <option value="glass">Glass 175ml</option>
+        <option value="pocket">Pocket 250ml</option>
+        <option value="500ml">500ml</option>
+        <option value="1l">1L</option>
+      </select>
+
+      <label class="block font-semibold text-amber-700 mb-1">Use Point Type:</label>
+      <select id="pointTypeSelect" class="w-full border p-2 rounded mb-2">
+        <option value="">-- Select Point Type --</option>
+        <option value="glass">Glass Points</option>
+        <option value="pocket">Pocket Points</option>
+        <option value="500ml">500ml Points</option>
+        <option value="1l">1L Points</option>
+      </select>
+
+      <p id="costDisplay" class="text-center text-sm text-amber-700 font-semibold mt-1"></p>
+    </div>
+
+    <button onclick="redeemItem()" class="w-full bg-green-700 text-white p-2 rounded-lg hover:bg-green-800">🎯 Redeem</button>
+    <button onclick="goBack()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg mt-3 hover:bg-gray-400">⬅️ Back to Transaction</button>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
+      authDomain: "kopi-copybara.firebaseapp.com",
+      databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "kopi-copybara",
+      storageBucket: "kopi-copybara.appspot.com",
+      messagingSenderId: "729875984861",
+      appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let buyerId = null, buyerName = "", buyerData = {};
+
+    const pointsTable = {
+      copyaren: { glass: 10, pocket: 20, "500ml": 40, "1l": 80 },
+      chocobara: { glass: 12, pocket: 24, "500ml": 48, "1l": 95 },
+      camericano: { glass: 8, pocket: 15, "500ml": 30, "1l": 60 }
+    };
+
+    // ✅ Manual toast
+    function showToast(message, color = "green") {
+      const toast = document.getElementById("toast");
+      const toastMsg = document.getElementById("toastMessage");
+      const closeBtn = document.getElementById("toastClose");
+      toastMsg.textContent = message;
+      toast.style.backgroundColor = color === "red" ? "#dc2626" : "#16a34a";
+      toast.style.display = "flex";
+      closeBtn.onclick = () => toast.style.display = "none";
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const info = JSON.parse(localStorage.getItem("buyerInfo"));
+      if (!info) { showToast("No buyer selected!","red"); setTimeout(()=>window.location.href="transaction.html",1500); return; }
+      buyerId = info.id;
+      buyerName = info.name;
+      document.getElementById("buyerName").textContent = buyerName;
+      loadBuyerData();
+
+      document.getElementById("productSelect").addEventListener("change", updateCostDisplay);
+      document.getElementById("sizeSelect").addEventListener("change", updateCostDisplay);
+    });
+
+    function updateCostDisplay() {
+      const prod = document.getElementById("productSelect").value;
+      const size = document.getElementById("sizeSelect").value;
+      const costEl = document.getElementById("costDisplay");
+      if (prod && size) {
+        const cost = pointsTable[prod][size];
+        costEl.textContent = `🔸 Redeem cost: ${cost} pts`;
+      } else costEl.textContent = "";
+    }
+
+    function loadBuyerData() {
+      db.ref("buyers/" + buyerId).once("value").then(snap => {
+        buyerData = snap.val() || {};
+        updateSummaryDisplay();
+      });
+    }
+
+    function updateSummaryDisplay() {
+      const g = buyerData.summaryGlass || 0;
+      const p = buyerData.summaryPocket || 0;
+      const m = buyerData.summary500ml || 0;
+      const l = buyerData.summary1L || 0;
+      const t = buyerData.masterPoints || 0;
+      document.getElementById("glassPoints").textContent = g;
+      document.getElementById("pocketPoints").textContent = p;
+      document.getElementById("ml500Points").textContent = m;
+      document.getElementById("l1Points").textContent = l;
+      document.getElementById("totalPoints").textContent = t;
+    }
+
+    function redeemItem() {
+      const prod = document.getElementById("productSelect").value;
+      const size = document.getElementById("sizeSelect").value;
+      const pointType = document.getElementById("pointTypeSelect").value;
+      if (!prod || !size || !pointType) return showToast("Please select product, size, and point type","red");
+
+      const cost = pointsTable[prod][size];
+      const totalPts = buyerData.masterPoints || 0;
+      const availablePts = buyerData[`summary${pointType.charAt(0).toUpperCase() + pointType.slice(1)}`] || 0;
+
+      if (totalPts < cost) return showToast("Not enough total points!","red");
+      if (availablePts < cost) return showToast(`Not enough ${pointType} points!`,"red");
+
+      if (!confirm(`Redeem 1 ${prod} (${size}) for ${cost} pts using ${pointType.toUpperCase()} points?`)) return;
+
+      const update = {};
+      update[`summary${pointType.charAt(0).toUpperCase() + pointType.slice(1)}`] = Math.max(0, availablePts - cost);
+      update.masterPoints = Math.max(0, totalPts - cost);
+
+      db.ref("buyers/" + buyerId).update(update).then(() => {
+        buyerData = { ...buyerData, ...update };
+        updateSummaryDisplay();
+        showToast(`✅ Redeemed 1 ${prod} (${size}) for ${cost} pts`, "green");
+
+        // ✅ Reset dropdowns
+        document.getElementById("productSelect").value = "";
+        document.getElementById("sizeSelect").value = "";
+        document.getElementById("pointTypeSelect").value = "";
+        document.getElementById("costDisplay").textContent = "";
+
+        // 🧾 Save to history
+        const redeemHistory = {
+          buyer: buyerName,
+          product: prod,
+          size: size,
+          pointsUsed: cost,
+          pointTypeUsed: pointType,
+          timestamp: new Date().toISOString(),
+          staff: sessionStorage.getItem("staffName") || "Unknown"
+        };
+        db.ref("redeemHistory").push(redeemHistory);
+      });
+    }
+
+    function goBack() { window.location.href = "transaction.html"; }
+  </script>
+</body>
+</html>
