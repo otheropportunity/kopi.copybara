@@ -38,6 +38,11 @@
   <div id="toast"></div>
 
   <div class="card">
+    <!-- ✅ Live Clock -->
+    <div class="text-right text-sm text-gray-600 mb-2">
+      <span id="liveDateTime"></span>
+    </div>
+
     <h1 class="text-2xl font-bold text-center text-amber-800 mb-2">☕ Staff Transaction Panel</h1>
     <h2 class="text-lg font-semibold text-center mb-4">
       Welcome, <span id="staffNameDisplay" class="text-amber-700"></span>
@@ -47,6 +52,8 @@
       <input id="searchBuyer" class="w-full border rounded p-2 mb-2" placeholder="Search Buyer (Name / Phone)" />
       <button onclick="searchBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg hover:bg-green-800 transition">Search</button>
     </div>
+
+    <div id="buyerInfo" class="hidden border-t pt-3">
 
       <!-- ✅ Buyer Summary -->
       <div id="buyerSummary" class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
@@ -60,7 +67,7 @@
           <p>1L: <span id="l1Points" class="font-bold text-amber-900">0</span></p>
         </div>
       </div>
-
+      
       <!-- 🔽 Product Selection Section -->
       <h3 class="font-semibold mb-2 text-amber-800">Select Items:</h3>
 
@@ -156,7 +163,7 @@ let currentBuyerName = "";
 let currentBuyerPoints = 0;
 let paymentType = null;
 
-/* ✅ Toast Function */
+/* ✅ Animated Toast */
 function showToast(msg, color="green") {
   const toast=document.getElementById("toast");
   toast.textContent=msg;
@@ -165,10 +172,18 @@ function showToast(msg, color="green") {
   setTimeout(()=>toast.classList.remove("show"),3000);
 }
 
+/* ✅ Live Clock */
+function updateClock(){
+  const now=new Date();
+  const formatted=now.toLocaleString('en-GB',{hour12:false});
+  document.getElementById("liveDateTime").textContent=formatted;
+}
+setInterval(updateClock,1000);updateClock();
+
 const prices = {
   copyaren: {175:10000,250:20000,500:40000,1000:80000},
   chocobara: {175:12000,250:24000,500:48000,1000:95000},
-  camericano: {175:8000,250:15000,500:30000,1000:60000}
+  cameriano: {175:8000,250:15000,500:30000,1000:60000}
 };
 
 document.addEventListener("DOMContentLoaded",()=>{
@@ -217,8 +232,22 @@ function calculateTotal(){
   const aQ=+document.getElementById("camericanoQty").value||0;
   const aS=document.getElementById("camericanoSize").value;
 
-  const totalAmount=cQ*prices.copyaren[cS]+bQ*prices.chocobara[bS]+aQ*prices.camericano[aS];
+  const totalAmount=cQ*prices.copyaren[cS]+bQ*prices.chocobara[bS]+aQ*prices.cameriano[aS];
   const totalPoints=cQ+bQ+aQ;
+
+  const summary={glass:0,pocket:0,ml500:0,l1:0};
+  function addSummary(size,qty){
+    if(size==="175") summary.glass+=qty;
+    else if(size==="250") summary.pocket+=qty;
+    else if(size==="500") summary.ml500+=qty;
+    else if(size==="1000") summary.l1+=qty;
+  }
+  addSummary(cS,cQ);
+  addSummary(bS,bQ);
+  addSummary(aS,aQ);
+
+  document.getElementById("totalAmount").textContent=totalAmount.toLocaleString();
+  document.getElementById("totalPoints").textContent=totalPoints;
 
   if(paymentType==="CASH"){
     const paid=+document.getElementById("cashPaid").value||0;
@@ -226,51 +255,57 @@ function calculateTotal(){
     document.getElementById("changeAmount").textContent=change.toLocaleString();
   }
 
-  document.getElementById("totalAmount").textContent=totalAmount.toLocaleString();
-  document.getElementById("totalPoints").textContent=totalPoints;
-  return {totalAmount,totalPoints,cQ,cS,bQ,bS,aQ,aS};
+  return {totalAmount,totalPoints,summary,cQ,cS,bQ,bS,aQ,aS};
 }
 
 function submitTransaction(){
   if(!currentBuyerId) return showToast("Please search for a buyer first!","red");
   if(!paymentType) return showToast("Select payment type!","red");
 
-  const {totalAmount,totalPoints,cQ,cS,bQ,bS,aQ,aS}=calculateTotal();
+  const {totalAmount,totalPoints,summary,cQ,cS,bQ,bS,aQ,aS}=calculateTotal();
   if(totalAmount===0) return showToast("Please select at least one item!","red");
 
-  const staffName=sessionStorage.getItem("staffName")||"Unknown";
-  const timestamp=new Date().toISOString();
+  const paid=+document.getElementById("cashPaid").value||0;
+  const change=paymentType==="CASH"?Math.max(0,paid-totalAmount):0;
+  const now=new Date();
+  const dateTime=now.toLocaleString('en-GB',{hour12:false}).replace(",","");
 
-  const transactionData={
+  const staff=sessionStorage.getItem("staffName")||"Unknown";
+  const updatedMasterPoints=currentBuyerPoints+totalPoints;
+
+  const txnData={
     buyerId:currentBuyerId,
     buyerName:currentBuyerName,
-    staffName,
     paymentType,
+    paidAmount:paid,
+    changeAmount:change,
     totalAmount,
-    totalPoints,
-    date:timestamp,
-    details:{
-      copyaren:{qty:cQ,size:cS},
-      chocobara:{qty:bQ,size:bS},
-      cameriano:{qty:aQ,size:aS}
+    totalPointsEarned:totalPoints,
+    updatedMasterPoints,
+    dateTime,
+    staff,
+    items:{
+      copyaren:{size:cS,qty:cQ},
+      chocobara:{size:bS,qty:bQ},
+      cameriano:{size:aS,qty:aQ}
     }
   };
 
-  db.ref("transactions").push(transactionData).then(()=>{
-    showToast(`✅ Transaction saved for ${currentBuyerName}`, "green");
-    ["copyarenQty","chocobaraQty","camericanoQty"].forEach(id=>document.getElementById(id).value=0);
+  db.ref("transactions").push(txnData).then(()=>{
+    showToast("✅ Transaction saved successfully!","green");
+    ["copyarenQty","chocobaraQty","camericanoQty","cashPaid"].forEach(id=>document.getElementById(id).value=0);
     document.getElementById("totalAmount").textContent="0";
     document.getElementById("totalPoints").textContent="0";
-    document.getElementById("cashPaid").value="";
-    document.getElementById("changeAmount").textContent="0";
   }).catch(()=>{
-    showToast("Failed to save transaction!","red");
+    showToast("❌ Failed to save transaction!","red");
   });
 }
 
 function saveBuyerForRedeem(){
   if(!currentBuyerId)return showToast("Search buyer first!","red");
-  localStorage.setItem("buyerInfo",JSON.stringify({id:currentBuyerId,name:currentBuyerName,masterPoints:currentBuyerPoints}));
+  localStorage.setItem("buyerInfo",JSON.stringify({
+    id:currentBuyerId,name:currentBuyerName,masterPoints:currentBuyerPoints
+  }));
   return true;
 }
 
