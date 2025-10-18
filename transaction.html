@@ -11,25 +11,15 @@
     body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
     .card { background: white; border-radius: 12px; padding: 24px; max-width: 500px; margin: 50px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
 
-    /* ✅ Animated Toast */
     #toast {
-      position: fixed;
-      bottom: 20px;
-      right: -300px;
-      background-color: #16a34a;
-      color: white;
-      padding: 10px 20px;
-      border-radius: 8px;
+      position: fixed; bottom: 20px; right: -300px;
+      background-color: #16a34a; color: white;
+      padding: 10px 20px; border-radius: 8px;
       box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-      font-size: 14px;
-      transition: all 0.5s ease;
-      opacity: 0;
-      z-index: 1000;
+      font-size: 14px; transition: all 0.5s ease;
+      opacity: 0; z-index: 1000;
     }
-    #toast.show {
-      right: 20px;
-      opacity: 1;
-    }
+    #toast.show { right: 20px; opacity: 1; }
   </style>
 </head>
 <body>
@@ -44,13 +34,14 @@
       Welcome, <span id="staffNameDisplay" class="text-amber-700"></span>
     </h2>
 
+    <!-- 🔍 Buyer Search -->
     <div class="mb-4">
       <input id="searchBuyer" class="w-full border rounded p-2 mb-2" placeholder="Search Buyer (Name / Phone)" />
       <button onclick="searchBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg hover:bg-green-800 transition">Search</button>
     </div>
 
     <div id="buyerInfo" class="hidden border-t pt-3">
-      <!-- ✅ Buyer Summary -->
+      <!-- 👤 Buyer Summary -->
       <div id="buyerSummary" class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
         <h3 class="font-semibold text-amber-800 text-center mb-2">👤 Member Summary</h3>
         <p class="text-center mb-2">Name: <span id="buyerNameDisplay" class="font-bold text-amber-900">-</span></p>
@@ -63,7 +54,7 @@
         </div>
       </div>
       
-      <!-- 🔽 Product Selection Section -->
+      <!-- ☕ Product Selection -->
       <h3 class="font-semibold mb-2 text-amber-800">Select Items:</h3>
 
       <!-- Copyaren -->
@@ -108,7 +99,7 @@
         </select>
       </div>
 
-      <!-- Transaction Summary -->
+      <!-- 💰 Transaction Type -->
       <div class="mt-3">
         <label class="font-semibold text-amber-700">Transaction Type:</label>
         <div class="flex gap-3 mt-2">
@@ -118,12 +109,14 @@
         <p class="text-sm mt-2 text-gray-600">Selected: <span id="selectedPayment">None</span></p>
       </div>
 
+      <!-- 💵 Cash Input -->
       <div id="cashInputSection" class="hidden mt-3 bg-amber-50 border border-amber-200 p-3 rounded-lg">
         <label class="block mb-1 font-semibold">Customer Paid (Rp):</label>
         <input type="number" id="cashPaid" min="0" class="w-full p-2 border rounded" placeholder="Enter paid amount" />
         <p class="text-sm text-gray-600 mt-2">Change: Rp <span id="changeAmount">0</span></p>
       </div>
 
+      <!-- 📊 Summary -->
       <div class="mt-4 bg-amber-50 p-3 rounded-lg border border-amber-200">
         <p><strong>Total Amount:</strong> Rp <span id="totalAmount">0</span></p>
         <p><strong>Points Earned:</strong> <span id="totalPoints">0</span></p>
@@ -152,39 +145,36 @@ const firebaseConfig = {
   appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
 };
 firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+const db=firebase.database();
 
-let currentBuyerId=null, currentBuyerName="", currentBuyerPoints=0, paymentType=null;
+let currentBuyerId=null,currentBuyerName="",currentBuyerPoints=0,paymentType=null;
 
-/* ✅ Toast Function */
+/* ✅ Toast */
 function showToast(msg,color="green"){const t=document.getElementById("toast");t.textContent=msg;t.style.backgroundColor=color==="red"?"#dc2626":"#16a34a";t.classList.add("show");setTimeout(()=>t.classList.remove("show"),3000);}
 
 /* ✅ Prices */
 const prices={copyaren:{175:10000,250:20000,500:40000,1000:80000},chocobara:{175:12000,250:24000,500:48000,1000:95000},camericano:{175:8000,250:15000,500:30000,1000:60000}};
 
-/* ✅ Show Time Sync */
-setInterval(()=>{
-  const now=new Date();
-  document.getElementById("dateTimeDisplay").textContent=now.toLocaleString();
-},1000);
+/* ✅ Time Display */
+setInterval(()=>{document.getElementById("dateTimeDisplay").textContent=new Date().toLocaleString();},1000);
 
 document.addEventListener("DOMContentLoaded",()=>{
-  const staffName=sessionStorage.getItem("staffName");
-  if(!staffName){showToast("Session expired. Please login again.","red");window.location.href="index.html";return;}
-  document.getElementById("staffNameDisplay").textContent=staffName;
+  const staff=sessionStorage.getItem("staffName");
+  if(!staff){showToast("Session expired. Please login again.","red");window.location.href="index.html";return;}
+  document.getElementById("staffNameDisplay").textContent=staff;
 });
 
+/* ✅ Payment type */
 function setPaymentType(type){
   paymentType=type;
   document.getElementById("selectedPayment").textContent=type;
   document.getElementById("cashInputSection").classList.toggle("hidden",type!=="CASH");
 }
 
-/* ✅ Auto calculate change when typing */
-document.addEventListener("input",(e)=>{
-  if(e.target.id==="cashPaid") calculateTotal();
-});
+/* ✅ Auto change calc */
+document.addEventListener("input",e=>{if(e.target.id==="cashPaid")calculateTotal();});
 
+/* ✅ Search Buyer */
 function searchBuyer(){
   const q=document.getElementById("searchBuyer").value.trim().toLowerCase();
   if(!q)return showToast("Enter buyer name or phone!","red");
@@ -193,8 +183,7 @@ function searchBuyer(){
     s.forEach(c=>{
       const d=c.val();
       if((d.name&&d.name.toLowerCase().includes(q))||(d.phone&&d.phone.includes(q))){
-        found=true;
-        currentBuyerId=c.key;currentBuyerName=d.name;currentBuyerPoints=d.masterPoints||0;
+        found=true;currentBuyerId=c.key;currentBuyerName=d.name;currentBuyerPoints=d.masterPoints||0;
         document.getElementById("buyerNameDisplay").innerText=currentBuyerName;
         document.getElementById("buyerTotalPoints").innerText=currentBuyerPoints;
         document.getElementById("glassPoints").innerText=d.summaryGlass||0;
@@ -209,6 +198,7 @@ function searchBuyer(){
   });
 }
 
+/* ✅ Calculate Total */
 function calculateTotal(){
   const cQ=+document.getElementById("copyarenQty").value||0,cS=document.getElementById("copyarenSize").value;
   const bQ=+document.getElementById("chocobaraQty").value||0,bS=document.getElementById("chocobaraSize").value;
@@ -252,6 +242,7 @@ function submitTransaction(){
       summary500ml:(d.summary500ml||0)+summary.ml500,
       summary1L:(d.summary1L||0)+summary.l1
     };
+
     db.ref("buyers/"+currentBuyerId).update(newData).then(()=>{
       const txnRef=db.ref("transactions").push();
       txnRef.set({
@@ -281,11 +272,8 @@ function submitTransaction(){
   });
 }
 
-function saveBuyerForRedeem(){
-  if(!currentBuyerId)return showToast("Search buyer first!","red");
-  localStorage.setItem("buyerInfo",JSON.stringify({id:currentBuyerId,name:currentBuyerName,masterPoints:currentBuyerPoints}));
-  return true;
-}
+/* ✅ Redeem & Logout */
+function saveBuyerForRedeem(){if(!currentBuyerId)return showToast("Search buyer first!","red");localStorage.setItem("buyerInfo",JSON.stringify({id:currentBuyerId,name:currentBuyerName,masterPoints:currentBuyerPoints}));return true;}
 function goToRedeem(){if(saveBuyerForRedeem())window.location.href="redeem.html";}
 function logoutStaff(){sessionStorage.clear();window.location.href="index.html";}
 </script>
