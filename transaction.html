@@ -11,7 +11,7 @@
     body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
     .card { background: white; border-radius: 12px; padding: 24px; max-width: 500px; margin: 50px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
 
-    /* ✅ Toast */
+    /* ✅ Animated Toast */
     #toast {
       position: fixed;
       bottom: 20px;
@@ -26,17 +26,23 @@
       opacity: 0;
       z-index: 1000;
     }
-    #toast.show { right: 20px; opacity: 1; }
+    #toast.show {
+      right: 20px;
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
 
+  <!-- ✅ Toast -->
   <div id="toast"></div>
 
   <div class="card">
     <h1 class="text-2xl font-bold text-center text-amber-800 mb-1">☕ Staff Transaction Panel</h1>
-    <h2 class="text-lg font-semibold text-center mb-2">Welcome, <span id="staffNameDisplay" class="text-amber-700"></span></h2>
-    <p class="text-center text-sm text-gray-500 mb-4" id="currentTime"></p>
+    <p id="dateTimeDisplay" class="text-center text-sm text-gray-600 mb-2"></p>
+    <h2 class="text-lg font-semibold text-center mb-4">
+      Welcome, <span id="staffNameDisplay" class="text-amber-700"></span>
+    </h2>
 
     <div class="mb-4">
       <input id="searchBuyer" class="w-full border rounded p-2 mb-2" placeholder="Search Buyer (Name / Phone)" />
@@ -44,7 +50,7 @@
     </div>
 
     <div id="buyerInfo" class="hidden border-t pt-3">
-
+      <!-- ✅ Buyer Summary -->
       <div id="buyerSummary" class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
         <h3 class="font-semibold text-amber-800 text-center mb-2">👤 Member Summary</h3>
         <p class="text-center mb-2">Name: <span id="buyerNameDisplay" class="font-bold text-amber-900">-</span></p>
@@ -56,7 +62,8 @@
           <p>1L: <span id="l1Points" class="font-bold text-amber-900">0</span></p>
         </div>
       </div>
-
+      
+      <!-- 🔽 Product Selection Section -->
       <h3 class="font-semibold mb-2 text-amber-800">Select Items:</h3>
 
       <!-- Copyaren -->
@@ -101,18 +108,19 @@
         </select>
       </div>
 
+      <!-- Transaction Summary -->
       <div class="mt-3">
         <label class="font-semibold text-amber-700">Transaction Type:</label>
         <div class="flex gap-3 mt-2">
-          <button id="btnQRIS" onclick="setPaymentType('QRIS')" class="flex-1 bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700">QRIS</button>
-          <button id="btnCash" onclick="setPaymentType('CASH')" class="flex-1 bg-green-600 text-white p-2 rounded-lg hover:bg-green-700">CASH</button>
+          <button type="button" id="btnQRIS" onclick="setPaymentType('QRIS')" class="flex-1 bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700">QRIS</button>
+          <button type="button" id="btnCash" onclick="setPaymentType('CASH')" class="flex-1 bg-green-600 text-white p-2 rounded-lg hover:bg-green-700">CASH</button>
         </div>
         <p class="text-sm mt-2 text-gray-600">Selected: <span id="selectedPayment">None</span></p>
       </div>
 
       <div id="cashInputSection" class="hidden mt-3 bg-amber-50 border border-amber-200 p-3 rounded-lg">
         <label class="block mb-1 font-semibold">Customer Paid (Rp):</label>
-        <input type="number" id="cashPaid" min="0" class="w-full p-2 border rounded" placeholder="Enter paid amount" oninput="updateChange()" />
+        <input type="number" id="cashPaid" min="0" class="w-full p-2 border rounded" placeholder="Enter paid amount" />
         <p class="text-sm text-gray-600 mt-2">Change: Rp <span id="changeAmount">0</span></p>
       </div>
 
@@ -122,7 +130,7 @@
       </div>
 
       <button onclick="calculateTotal()" class="w-full bg-yellow-600 text-white p-2 rounded-lg mt-3 hover:bg-yellow-700">🧮 Calculate Total</button>
-      <button onclick="submitTransaction()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-3 hover:bg-amber-800">Submit Transaction</button>
+      <button id="submitBtn" onclick="submitTransaction()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-3 hover:bg-amber-800">Submit Transaction</button>
       <button onclick="goToRedeem()" class="w-full bg-blue-700 text-white p-2 rounded-lg mt-3 hover:bg-blue-800">Redeem Points</button>
     </div>
 
@@ -133,71 +141,151 @@
   </div>
 
 <script>
-const firebaseConfig={apiKey:"AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",authDomain:"kopi-copybara.firebaseapp.com",databaseURL:"https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kopi-copybara",storageBucket:"kopi-copybara.appspot.com",messagingSenderId:"729875984861",appId:"1:729875984861:web:6b1ea2d44f8789c18e4634"};
+/* === Firebase Config === */
+const firebaseConfig = {
+  apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
+  authDomain: "kopi-copybara.firebaseapp.com",
+  databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "kopi-copybara",
+  storageBucket: "kopi-copybara.appspot.com",
+  messagingSenderId: "729875984861",
+  appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
+};
 firebase.initializeApp(firebaseConfig);
-const db=firebase.database();
+const db = firebase.database();
 
-let currentBuyerId=null,currentBuyerName="",currentBuyerPoints=0,paymentType=null;
+let currentBuyerId=null, currentBuyerName="", currentBuyerPoints=0, paymentType=null;
 
+/* ✅ Toast Function */
 function showToast(msg,color="green"){const t=document.getElementById("toast");t.textContent=msg;t.style.backgroundColor=color==="red"?"#dc2626":"#16a34a";t.classList.add("show");setTimeout(()=>t.classList.remove("show"),3000);}
+
+/* ✅ Prices */
 const prices={copyaren:{175:10000,250:20000,500:40000,1000:80000},chocobara:{175:12000,250:24000,500:48000,1000:95000},camericano:{175:8000,250:15000,500:30000,1000:60000}};
 
-document.addEventListener("DOMContentLoaded",()=>{const s=sessionStorage.getItem("staffName");if(!s){showToast("Session expired. Please login again.","red");window.location.href="index.html";return;}document.getElementById("staffNameDisplay").textContent=s;setInterval(()=>{document.getElementById("currentTime").textContent=new Date().toLocaleString();},1000);});
+/* ✅ Show Time Sync */
+setInterval(()=>{
+  const now=new Date();
+  document.getElementById("dateTimeDisplay").textContent=now.toLocaleString();
+},1000);
 
-function setPaymentType(t){paymentType=t;document.getElementById("selectedPayment").textContent=t;document.getElementById("cashInputSection").classList.toggle("hidden",t!=="CASH");}
+document.addEventListener("DOMContentLoaded",()=>{
+  const staffName=sessionStorage.getItem("staffName");
+  if(!staffName){showToast("Session expired. Please login again.","red");window.location.href="index.html";return;}
+  document.getElementById("staffNameDisplay").textContent=staffName;
+});
 
-function searchBuyer(){const q=document.getElementById("searchBuyer").value.trim().toLowerCase();if(!q)return showToast("Enter buyer name or phone!","red");db.ref("buyers").once("value").then(s=>{let f=false;s.forEach(c=>{const d=c.val();if((d.name&&d.name.toLowerCase().includes(q))||(d.phone&&d.phone.includes(q))){f=true;currentBuyerId=c.key;currentBuyerName=d.name;currentBuyerPoints=d.masterPoints||0;document.getElementById("buyerNameDisplay").innerText=currentBuyerName;document.getElementById("buyerTotalPoints").innerText=currentBuyerPoints;document.getElementById("buyerInfo").classList.remove("hidden");showToast(`Buyer found: ${currentBuyerName}`);}});if(!f)showToast("Buyer not found!","red");});}
+function setPaymentType(type){
+  paymentType=type;
+  document.getElementById("selectedPayment").textContent=type;
+  document.getElementById("cashInputSection").classList.toggle("hidden",type!=="CASH");
+}
+
+/* ✅ Auto calculate change when typing */
+document.addEventListener("input",(e)=>{
+  if(e.target.id==="cashPaid") calculateTotal();
+});
+
+function searchBuyer(){
+  const q=document.getElementById("searchBuyer").value.trim().toLowerCase();
+  if(!q)return showToast("Enter buyer name or phone!","red");
+  db.ref("buyers").once("value").then(s=>{
+    let found=false;
+    s.forEach(c=>{
+      const d=c.val();
+      if((d.name&&d.name.toLowerCase().includes(q))||(d.phone&&d.phone.includes(q))){
+        found=true;
+        currentBuyerId=c.key;currentBuyerName=d.name;currentBuyerPoints=d.masterPoints||0;
+        document.getElementById("buyerNameDisplay").innerText=currentBuyerName;
+        document.getElementById("buyerTotalPoints").innerText=currentBuyerPoints;
+        document.getElementById("glassPoints").innerText=d.summaryGlass||0;
+        document.getElementById("pocketPoints").innerText=d.summaryPocket||0;
+        document.getElementById("ml500Points").innerText=d.summary500ml||0;
+        document.getElementById("l1Points").innerText=d.summary1L||0;
+        document.getElementById("buyerInfo").classList.remove("hidden");
+        showToast(`Buyer found: ${currentBuyerName}`);
+      }
+    });
+    if(!found)showToast("Buyer not found!","red");
+  });
+}
 
 function calculateTotal(){
-  const cq=+document.getElementById("copyarenQty").value||0,cs=document.getElementById("copyarenSize").value,
-        bq=+document.getElementById("chocobaraQty").value||0,bs=document.getElementById("chocobaraSize").value,
-        aq=+document.getElementById("camericanoQty").value||0,as=document.getElementById("camericanoSize").value;
-
-  const total=cq*prices.copyaren[cs]+bq*prices.chocobara[bs]+aq*prices.camericano[as];
-  const points=cq+bq+aq;
+  const cQ=+document.getElementById("copyarenQty").value||0,cS=document.getElementById("copyarenSize").value;
+  const bQ=+document.getElementById("chocobaraQty").value||0,bS=document.getElementById("chocobaraSize").value;
+  const aQ=+document.getElementById("camericanoQty").value||0,aS=document.getElementById("camericanoSize").value;
+  const totalAmount=cQ*prices.copyaren[cS]+bQ*prices.chocobara[bS]+aQ*prices.camericano[aS];
+  const totalPoints=cQ+bQ+aQ;
   const summary={glass:0,pocket:0,ml500:0,l1:0};
-  const add=(s,q)=>{if(s==="175")summary.glass+=q;else if(s==="250")summary.pocket+=q;else if(s==="500")summary.ml500+=q;else if(s==="1000")summary.l1+=q;};
-  add(cs,cq);add(bs,bq);add(as,aq);
-
-  document.getElementById("totalAmount").textContent=total.toLocaleString();
-  document.getElementById("totalPoints").textContent=points;
-
-  if(paymentType==="CASH")updateChange();
-  return {total,points,summary,items:`Copyaren ${cs}ml x${cq}, Chocobara ${bs}ml x${bq}, Camericano ${as}ml x${aq}`};
+  function addSummary(s,q){if(s==="175")summary.glass+=q;else if(s==="250")summary.pocket+=q;else if(s==="500")summary.ml500+=q;else if(s==="1000")summary.l1+=q;}
+  addSummary(cS,cQ);addSummary(bS,bQ);addSummary(aS,aQ);
+  document.getElementById("totalAmount").textContent=totalAmount.toLocaleString();
+  document.getElementById("totalPoints").textContent=totalPoints;
+  if(paymentType==="CASH"){
+    const paid=+document.getElementById("cashPaid").value||0;
+    const change=paid>0?Math.max(0,paid-totalAmount):0;
+    document.getElementById("changeAmount").textContent=change.toLocaleString();
+  }
+  return {totalAmount,totalPoints,summary,items:[
+    cQ>0?`Copyaren ${cS}ml x${cQ}`:null,
+    bQ>0?`Chocobara ${bS}ml x${bQ}`:null,
+    aQ>0?`Camericano ${aS}ml x${aQ}`:null
+  ].filter(Boolean).join(", ")};
 }
 
-function updateChange(){
-  const paid=+document.getElementById("cashPaid").value||0;
-  const total=parseInt(document.getElementById("totalAmount").textContent.replace(/,/g,""))||0;
-  const change=Math.max(0,paid-total);
-  document.getElementById("changeAmount").textContent=change.toLocaleString();
-}
-
+/* ✅ Submit Transaction */
 function submitTransaction(){
   if(!currentBuyerId)return showToast("Search buyer first!","red");
   if(!paymentType)return showToast("Select payment type!","red");
-
-  const {total,points,summary,items}=calculateTotal();
-  if(total===0)return showToast("Please select items!","red");
-
+  const {totalAmount,totalPoints,summary,items}=calculateTotal();
+  if(totalAmount===0)return showToast("Please select at least one item!","red");
+  const paid=paymentType==="CASH"?+document.getElementById("cashPaid").value||0:totalAmount;
+  const change=paymentType==="CASH"?Math.max(0,paid-totalAmount):0;
   const staff=sessionStorage.getItem("staffName");
-  const now=new Date().toLocaleString();
+  const dateTime=new Date().toLocaleString();
 
-  const data={
-    buyerId:currentBuyerId,buyerName:currentBuyerName,
-    totalAmount:total,paidAmount:+document.getElementById("cashPaid").value||0,
-    changeAmount:+document.getElementById("changeAmount").textContent.replace(/,/g,"")||0,
-    paymentType,paymentStatus:"completed",
-    staff,totalPointsEarned:points,updatedMasterPoints:currentBuyerPoints+points,
-    summaryGlass:summary.glass,summaryPocket:summary.pocket,summary500ml:summary.ml500,summary1L:summary.l1,
-    items,dateTime:now
-  };
-
-  const newRef=db.ref("transactions").push();
-  newRef.set(data).then(()=>{showToast("Transaction saved successfully!");["copyarenQty","chocobaraQty","camericanoQty","cashPaid"].forEach(id=>document.getElementById(id).value=0);document.getElementById("totalAmount").textContent="0";document.getElementById("totalPoints").textContent="0";document.getElementById("changeAmount").textContent="0";});
+  db.ref("buyers/"+currentBuyerId).once("value").then(snap=>{
+    const d=snap.val()||{};
+    const newData={
+      masterPoints:(d.masterPoints||0)+totalPoints,
+      summaryGlass:(d.summaryGlass||0)+summary.glass,
+      summaryPocket:(d.summaryPocket||0)+summary.pocket,
+      summary500ml:(d.summary500ml||0)+summary.ml500,
+      summary1L:(d.summary1L||0)+summary.l1
+    };
+    db.ref("buyers/"+currentBuyerId).update(newData).then(()=>{
+      const txnRef=db.ref("transactions").push();
+      txnRef.set({
+        buyerId:currentBuyerId,
+        buyerName:currentBuyerName,
+        totalAmount,
+        totalPointsEarned:totalPoints,
+        updatedMasterPoints:newData.masterPoints,
+        summaryGlass:summary.glass,
+        summaryPocket:summary.pocket,
+        summary500ml:summary.ml500,
+        summary1L:summary.l1,
+        paymentType,
+        paidAmount:paid,
+        changeAmount:change,
+        staff,
+        dateTime,
+        items
+      });
+      showToast(`✅ Transaction saved for ${currentBuyerName}`,"green");
+      ["copyarenQty","chocobaraQty","camericanoQty"].forEach(id=>document.getElementById(id).value=0);
+      document.getElementById("totalAmount").textContent="0";
+      document.getElementById("totalPoints").textContent="0";
+      document.getElementById("changeAmount").textContent="0";
+      document.getElementById("cashPaid").value="";
+    });
+  });
 }
 
-function saveBuyerForRedeem(){if(!currentBuyerId)return showToast("Search buyer first!","red");localStorage.setItem("buyerInfo",JSON.stringify({id:currentBuyerId,name:currentBuyerName,masterPoints:currentBuyerPoints}));return true;}
+function saveBuyerForRedeem(){
+  if(!currentBuyerId)return showToast("Search buyer first!","red");
+  localStorage.setItem("buyerInfo",JSON.stringify({id:currentBuyerId,name:currentBuyerName,masterPoints:currentBuyerPoints}));
+  return true;
+}
 function goToRedeem(){if(saveBuyerForRedeem())window.location.href="redeem.html";}
 function logoutStaff(){sessionStorage.clear();window.location.href="index.html";}
 </script>
