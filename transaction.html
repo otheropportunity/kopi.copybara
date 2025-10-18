@@ -48,12 +48,17 @@
       <button onclick="searchBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg hover:bg-green-800 transition">Search</button>
     </div>
 
-    <div id="buyerInfo" class="hidden border-t pt-3">
       <!-- ✅ Buyer Summary -->
       <div id="buyerSummary" class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
         <h3 class="font-semibold text-amber-800 text-center mb-2">👤 Member Summary</h3>
         <p class="text-center mb-2">Name: <span id="buyerNameDisplay" class="font-bold text-amber-900">-</span></p>
         <p class="text-center mb-3">Total Points: <span id="buyerTotalPoints" class="font-bold text-green-700">0</span></p>
+        <div class="grid grid-cols-2 gap-1 text-sm text-center">
+          <p>Glass: <span id="glassPoints" class="font-bold text-amber-900">0</span></p>
+          <p>Pocket: <span id="pocketPoints" class="font-bold text-amber-900">0</span></p>
+          <p>500ml: <span id="ml500Points" class="font-bold text-amber-900">0</span></p>
+          <p>1L: <span id="l1Points" class="font-bold text-amber-900">0</span></p>
+        </div>
       </div>
 
       <!-- 🔽 Product Selection Section -->
@@ -192,6 +197,10 @@ function searchBuyer(){
         currentBuyerPoints=d.masterPoints||0;
         document.getElementById("buyerNameDisplay").innerText=currentBuyerName;
         document.getElementById("buyerTotalPoints").innerText=currentBuyerPoints;
+        document.getElementById("glassPoints").innerText=d.summaryGlass||0;
+        document.getElementById("pocketPoints").innerText=d.summaryPocket||0;
+        document.getElementById("ml500Points").innerText=d.summary500ml||0;
+        document.getElementById("l1Points").innerText=d.summary1L||0;
         document.getElementById("buyerInfo").classList.remove("hidden");
         showToast(`Buyer found: ${currentBuyerName}`);
       }
