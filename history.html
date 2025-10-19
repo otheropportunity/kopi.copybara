@@ -1,215 +1,268 @@
-<script>
-const firebaseConfig = {
-  apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
-  authDomain: "kopi-copybara.firebaseapp.com",
-  databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "kopi-copybara",
-  storageBucket: "kopi-copybara.appspot.com",
-  messagingSenderId: "729875984861",
-  appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coffee Loyalty - Transaction & Redemption History</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body class="bg-amber-50 p-4">
+  <h1 class="text-2xl font-bold text-amber-800 mb-4">☕ Transaction & Redemption History</h1>
 
-let historyRows = [];
-let buyerPointsMaster = {};
-let sortByName = false;
-let filteredRows = [];
+  <div class="flex items-center gap-4 flex-wrap mb-4">
+    <button onclick="window.location.href='transaction.html'"
+      class="bg-amber-700 text-white p-2 px-4 rounded-lg hover:bg-amber-800 transition">
+      ⬅ Back
+    </button>
 
-const pointTable = {
-  copyaren: {glass:1, pocket:2, "500ml":4, "1l":8},
-  chocobara: {glass:1, pocket:2, "500ml":4, "1l":8},
-  camericano: {glass:1, pocket:2, "500ml":4, "1l":8}
-};
+    <span id="totalPointsDisplay" class="font-bold text-amber-800 text-lg">Loading points...</span>
 
-// Convert UTC timestamp to GMT+7 (Jakarta time)
-function toJakartaTime(timestamp) {
-  try {
-    const date = new Date(timestamp);
-    if (isNaN(date)) return "-";
-    return date.toLocaleString("en-GB", { timeZone: "Asia/Jakarta" });
-  } catch {
-    return "-";
-  }
-}
+    <input id="searchInput" type="text" placeholder="🔍 Search buyer name..."
+      class="border border-amber-400 rounded-lg p-2 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-amber-500" />
 
-document.addEventListener("DOMContentLoaded", async () => {
-  const staffName = sessionStorage.getItem("staffName");
-  if (!staffName || staffName === "null") {
-    alert("Session expired or not logged in. Please login again.");
-    window.location.href = "index.html";
-    return;
-  }
-  document.getElementById("staffNameDisplay").textContent = "Logged in as: " + staffName;
+    <button id="sortButton" class="bg-amber-600 text-white p-2 px-4 rounded-lg hover:bg-amber-700 transition">
+      🔤 Sort by Name
+    </button>
 
-  await loadBuyerPoints();
-  await loadHistory();
+    <button id="downloadExcel" class="bg-green-600 text-white p-2 px-4 rounded-lg hover:bg-green-700 transition">
+      ⬇️ Download Excel
+    </button>
 
-  document.getElementById("sortButton").addEventListener("click", () => {
-    sortByName = !sortByName;
-    renderHistory();
-    document.getElementById("sortButton").textContent = sortByName ? "📅 Sort by Date" : "🔤 Sort by Name";
-  });
+    <span id="staffNameDisplay" class="font-semibold text-amber-700"></span>
+  </div>
 
-  document.getElementById("downloadExcel").addEventListener("click", downloadExcel);
-  
-  document.getElementById("searchInput").addEventListener("input", (e) => {
-    const keyword = e.target.value.toLowerCase();
-    filteredRows = historyRows.filter(r => (r.buyerName || "").toLowerCase().includes(keyword));
-    renderHistory();
-  });
-});
+  <table class="min-w-full bg-white rounded-lg text-sm shadow">
+    <thead class="bg-amber-700 text-white">
+      <tr>
+        <th class="p-2">Date/Time</th>
+        <th class="p-2">Buyer Name</th>
+        <th class="p-2">Items (Qty & Size)</th>
+        <th class="p-2">Total (Rp)</th>
+        <th class="p-2">Payment</th>
+        <th class="p-2">Paid (Rp)</th>
+        <th class="p-2">Change (Rp)</th>
+        <th class="p-2">Points Earned</th>
+        <th class="p-2">Redeemed (pts)</th>
+        <th class="p-2">Remaining Points</th>
+        <th class="p-2">Staff</th>
+      </tr>
+    </thead>
+    <tbody id="historyTable"></tbody>
+  </table>
 
-async function loadBuyerPoints() {
-  const snap = await db.ref("buyers").once("value");
-  snap.forEach(c => {
-    const b = c.val();
-    if (b && b.name) buyerPointsMaster[b.name] = b.masterPoint || b.points || 0;
-  });
-}
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
+      authDomain: "kopi-copybara.firebaseapp.com",
+      databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "kopi-copybara",
+      storageBucket: "kopi-copybara.appspot.com",
+      messagingSenderId: "729875984861",
+      appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-async function loadHistory() {
-  const table = document.getElementById("historyTable");
-  table.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">Loading...</td></tr>`;
+    let historyRows = [];
+    let buyerPointsMaster = {};
+    let sortByName = false;
+    let filteredRows = [];
 
-  const [transactionsSnap, redeemSnap] = await Promise.all([
-    db.ref("transactions").once("value"),
-    db.ref("redeemHistory").once("value")
-  ]);
+    const pointTable = {
+      copyaren: { glass: 1, pocket: 2, "500ml": 4, "1l": 8 },
+      chocobara: { glass: 1, pocket: 2, "500ml": 4, "1l": 8 },
+      camericano: { glass: 1, pocket: 2, "500ml": 4, "1l": 8 }
+    };
 
-  let rawRows = [];
-
-  // 🟢 Transactions
-  transactionsSnap.forEach(child => {
-    const t = child.val();
-    if (!t || !t.buyerName) return;
-
-    const itemsList = [];
-    let earned = 0;
-    [["copyaren","Copyaren"],["chocobara","Chocobara"],["camericano","Camericano"]].forEach(([key,label])=>{
-      const qty = parseInt(t[`${key}Qty`]) || 0;
-      const size = (t[`${key}Size`] || "").toLowerCase();
-      if(qty>0 && size){
-        itemsList.push(`${label} ${size} (${qty})`);
-        const pointValue = pointTable[key]?.[size] || 0;
-        earned += qty * pointValue;
+    function toJakartaTime(timestamp) {
+      try {
+        const date = new Date(timestamp);
+        if (isNaN(date)) return "-";
+        return date.toLocaleString("en-GB", { timeZone: "Asia/Jakarta" });
+      } catch {
+        return "-";
       }
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const staffName = sessionStorage.getItem("staffName");
+      if (!staffName || staffName === "null") {
+        alert("Session expired or not logged in. Please login again.");
+        window.location.href = "index.html";
+        return;
+      }
+      document.getElementById("staffNameDisplay").textContent = "Logged in as: " + staffName;
+
+      await loadBuyerPoints();
+      await loadHistory();
+
+      document.getElementById("sortButton").addEventListener("click", () => {
+        sortByName = !sortByName;
+        renderHistory();
+        document.getElementById("sortButton").textContent = sortByName ? "📅 Sort by Date" : "🔤 Sort by Name";
+      });
+
+      document.getElementById("downloadExcel").addEventListener("click", downloadExcel);
+
+      document.getElementById("searchInput").addEventListener("input", (e) => {
+        const keyword = e.target.value.toLowerCase();
+        filteredRows = historyRows.filter(r => (r.buyerName || "").toLowerCase().includes(keyword));
+        renderHistory();
+      });
     });
 
-    rawRows.push({
-      dateTime: toJakartaTime(t.dateTime),
-      buyerName: t.buyerName,
-      items: itemsList.join(", ") || "-",
-      totalAmount: t.totalAmount || 0,
-      paymentType: t.paymentType || "-",
-      paidAmount: t.paidAmount || 0,
-      changeAmount: t.changeAmount || 0,
-      pointsEarned: earned,
-      redeemed: 0,
-      staff: t.staff || "-",
-      isRedeem: false
-    });
-  });
+    async function loadBuyerPoints() {
+      const snap = await db.ref("buyers").once("value");
+      snap.forEach(c => {
+        const b = c.val();
+        if (b && b.name) buyerPointsMaster[b.name] = b.masterPoint || b.points || 0;
+      });
+    }
 
-  // 🔸 Redemptions (from redeemHistory)
-  redeemSnap.forEach(child => {
-    const r = child.val();
-    if (!r) return;
-    const buyer = r.buyer || r.buyerName || "Unknown";
-    const redeemed = r.pointsUsed || r.totalPointsUsed || 0;
-    const product = r.product || "Redeemed Item";
-    const size = r.size ? ` (${r.size})` : "";
-    const dateTime = toJakartaTime(r.timestamp || r.dateTime || "-");
+    async function loadHistory() {
+      const table = document.getElementById("historyTable");
+      table.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">Loading...</td></tr>`;
 
-    rawRows.push({
-      dateTime: dateTime,
-      buyerName: buyer,
-      items: `${product}${size}`,
-      totalAmount: "-",
-      paymentType: "REDEEM",
-      paidAmount: "-",
-      changeAmount: "-",
-      pointsEarned: 0,
-      redeemed: redeemed,
-      staff: r.staff || "-",
-      isRedeem: true
-    });
-  });
+      const [transactionsSnap, redeemSnap] = await Promise.all([
+        db.ref("transactions").once("value"),
+        db.ref("redeemHistory").once("value")
+      ]);
 
-  // Sort by date
-  rawRows.sort((a,b)=> new Date(a.dateTime) - new Date(b.dateTime));
+      let rawRows = [];
 
-  const buyerPoints = {};
-  historyRows = rawRows.map(r=>{
-    const prev = buyerPoints[r.buyerName] || 0;
-    const total = prev + r.pointsEarned - r.redeemed;
-    buyerPoints[r.buyerName] = total;
-    return {...r, remainingPoints: total};
-  });
+      transactionsSnap.forEach(child => {
+        const t = child.val();
+        if (!t || !t.buyerName) return;
 
-  historyRows = historyRows.map(r=>({
-    ...r,
-    remainingPoints: buyerPointsMaster[r.buyerName] ?? r.remainingPoints
-  }));
+        const itemsList = [];
+        let earned = 0;
+        [["copyaren", "Copyaren"], ["chocobara", "Chocobara"], ["camericano", "Camericano"]].forEach(([key, label]) => {
+          const qty = parseInt(t[`${key}Qty`]) || 0;
+          const size = (t[`${key}Size`] || "").toLowerCase();
+          if (qty > 0 && size) {
+            itemsList.push(`${label} ${size} (${qty})`);
+            const pointValue = pointTable[key]?.[size] || 0;
+            earned += qty * pointValue;
+          }
+        });
 
-  const currentBuyerName = sessionStorage.getItem("currentBuyerName");
-  if(currentBuyerName && buyerPointsMaster[currentBuyerName]!==undefined){
-    document.getElementById("totalPointsDisplay").textContent =
-      `⭐ ${currentBuyerName}: ${buyerPointsMaster[currentBuyerName]} pts`;
-  } else {
-    document.getElementById("totalPointsDisplay").textContent = "⭐ Points Loaded";
-  }
+        rawRows.push({
+          dateTime: toJakartaTime(t.dateTime),
+          buyerName: t.buyerName,
+          items: itemsList.join(", ") || "-",
+          totalAmount: t.totalAmount || 0,
+          paymentType: t.paymentType || "-",
+          paidAmount: t.paidAmount || 0,
+          changeAmount: t.changeAmount || 0,
+          pointsEarned: earned,
+          redeemed: 0,
+          staff: t.staff || "-",
+          isRedeem: false
+        });
+      });
 
-  historyRows.sort((a,b)=> new Date(b.dateTime)-new Date(a.dateTime));
-  filteredRows = [...historyRows];
-  renderHistory();
-}
+      redeemSnap.forEach(child => {
+        const r = child.val();
+        if (!r) return;
+        const buyer = r.buyer || r.buyerName || "Unknown";
+        const redeemed = r.pointsUsed || r.totalPointsUsed || 0;
+        const product = r.product || "Redeemed Item";
+        const size = r.size ? ` (${r.size})` : "";
+        const dateTime = toJakartaTime(r.timestamp || r.dateTime || "-");
 
-function renderHistory(){
-  const table=document.getElementById("historyTable");
-  const rowsToShow = filteredRows.length ? filteredRows : historyRows;
-  
-  if(rowsToShow.length===0){
-    table.innerHTML=`<tr><td colspan="11" class="text-center py-4 text-gray-500">No data.</td></tr>`;
-    return;
-  }
+        rawRows.push({
+          dateTime: dateTime,
+          buyerName: buyer,
+          items: `${product}${size}`,
+          totalAmount: "-",
+          paymentType: "REDEEM",
+          paidAmount: "-",
+          changeAmount: "-",
+          pointsEarned: 0,
+          redeemed: redeemed,
+          staff: r.staff || "-",
+          isRedeem: true
+        });
+      });
 
-  if(sortByName) rowsToShow.sort((a,b)=>(a.buyerName||"").localeCompare(b.buyerName||""));
+      rawRows.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
 
-  table.innerHTML=rowsToShow.map(r=>`
-    <tr class="hover:bg-amber-50 ${r.isRedeem ? 'bg-green-100 italic' : ''}">
-      <td>${r.dateTime}</td>
-      <td>${r.buyerName}</td>
-      <td>${r.items}</td>
-      <td>${r.totalAmount!=="-"?"Rp "+Number(r.totalAmount).toLocaleString():"-"}</td>
-      <td>${r.paymentType}</td>
-      <td>${r.paidAmount!=="-"?"Rp "+Number(r.paidAmount).toLocaleString():"-"}</td>
-      <td>${r.changeAmount!=="-"?"Rp "+Number(r.changeAmount).toLocaleString():"-"}</td>
-      <td>${r.pointsEarned||"-"}</td>
-      <td>${r.redeemed?r.redeemed+" pts":"-"}</td>
-      <td class="font-semibold text-amber-700">${r.remainingPoints}</td>
-      <td>${r.staff}</td>
-    </tr>`).join("");
-}
+      const buyerPoints = {};
+      historyRows = rawRows.map(r => {
+        const prev = buyerPoints[r.buyerName] || 0;
+        const total = prev + r.pointsEarned - r.redeemed;
+        buyerPoints[r.buyerName] = total;
+        return { ...r, remainingPoints: total };
+      });
 
-// ✅ Download only visible rows (filtered)
-function downloadExcel(){
-  const exportRows = filteredRows.length ? filteredRows : historyRows;
-  if(exportRows.length===0){alert("No data to export!");return;}
+      historyRows = historyRows.map(r => ({
+        ...r,
+        remainingPoints: buyerPointsMaster[r.buyerName] ?? r.remainingPoints
+      }));
 
-  const wsData=[["Date/Time","Buyer Name","Items","Total (Rp)","Payment","Paid (Rp)","Change (Rp)","Points Earned","Redeemed (pts)","Remaining Points","Staff"],
-    ...exportRows.map(r=>[
-      r.dateTime,r.buyerName,r.items,
-      r.totalAmount==="-"?"":r.totalAmount,
-      r.paymentType,r.paidAmount==="-"?"":r.paidAmount,
-      r.changeAmount==="-"?"":r.changeAmount,
-      r.pointsEarned||"",r.redeemed||"",r.remainingPoints,r.staff
-    ])
-  ];
-  const wb=XLSX.utils.book_new();
-  const ws=XLSX.utils.aoa_to_sheet(wsData);
-  XLSX.utils.book_append_sheet(wb,ws,"History");
-  const now=new Date();
-  XLSX.writeFile(wb,`Coffee_History_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}.xlsx`);
-}
-</script>
+      const currentBuyerName = sessionStorage.getItem("currentBuyerName");
+      if (currentBuyerName && buyerPointsMaster[currentBuyerName] !== undefined) {
+        document.getElementById("totalPointsDisplay").textContent =
+          `⭐ ${currentBuyerName}: ${buyerPointsMaster[currentBuyerName]} pts`;
+      } else {
+        document.getElementById("totalPointsDisplay").textContent = "⭐ Points Loaded";
+      }
+
+      historyRows.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
+      filteredRows = [...historyRows];
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const table = document.getElementById("historyTable");
+      const rowsToShow = filteredRows.length ? filteredRows : historyRows;
+
+      if (rowsToShow.length === 0) {
+        table.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">No data.</td></tr>`;
+        return;
+      }
+
+      if (sortByName) rowsToShow.sort((a, b) => (a.buyerName || "").localeCompare(b.buyerName || ""));
+
+      table.innerHTML = rowsToShow.map(r => `
+        <tr class="hover:bg-amber-50 ${r.isRedeem ? 'bg-green-100 italic' : ''}">
+          <td>${r.dateTime}</td>
+          <td>${r.buyerName}</td>
+          <td>${r.items}</td>
+          <td>${r.totalAmount !== "-" ? "Rp " + Number(r.totalAmount).toLocaleString() : "-"}</td>
+          <td>${r.paymentType}</td>
+          <td>${r.paidAmount !== "-" ? "Rp " + Number(r.paidAmount).toLocaleString() : "-"}</td>
+          <td>${r.changeAmount !== "-" ? "Rp " + Number(r.changeAmount).toLocaleString() : "-"}</td>
+          <td>${r.pointsEarned || "-"}</td>
+          <td>${r.redeemed ? r.redeemed + " pts" : "-"}</td>
+          <td class="font-semibold text-amber-700">${r.remainingPoints}</td>
+          <td>${r.staff}</td>
+        </tr>`).join("");
+    }
+
+    // ✅ Download only visible (filtered) data
+    function downloadExcel() {
+      const exportRows = filteredRows.length ? filteredRows : historyRows;
+      if (exportRows.length === 0) { alert("No data to export!"); return; }
+
+      const wsData = [["Date/Time", "Buyer Name", "Items", "Total (Rp)", "Payment", "Paid (Rp)", "Change (Rp)", "Points Earned", "Redeemed (pts)", "Remaining Points", "Staff"],
+      ...exportRows.map(r => [
+        r.dateTime, r.buyerName, r.items,
+        r.totalAmount === "-" ? "" : r.totalAmount,
+        r.paymentType, r.paidAmount === "-" ? "" : r.paidAmount,
+        r.changeAmount === "-" ? "" : r.changeAmount,
+        r.pointsEarned || "", r.redeemed || "", r.remainingPoints, r.staff
+      ])];
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      XLSX.utils.book_append_sheet(wb, ws, "History");
+      const now = new Date();
+      XLSX.writeFile(wb, `Coffee_History_${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}.xlsx`);
+    }
+  </script>
+</body>
+</html>
