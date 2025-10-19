@@ -115,6 +115,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 });
 
+// ✅ Load buyer master points
 async function loadBuyerPoints() {
   const snap = await db.ref("buyers").once("value");
   snap.forEach(c => {
@@ -123,7 +124,7 @@ async function loadBuyerPoints() {
   });
 }
 
-// 🟤 Load Transactions + Redemptions
+// ✅ Load Transactions + Redemptions
 async function loadHistory() {
   const table = document.getElementById("historyTable");
   table.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">Loading...</td></tr>`;
@@ -140,20 +141,17 @@ async function loadHistory() {
     const t = child.val();
     if (!t || !t.buyerName) return;
 
-    // Now read from the new field "items"
-    const itemsText = t.items || "-";
-    const earned = parseInt(t.totalPointsEarned) || 0;
-
     rawRows.push({
       dateTime: t.dateTime || "-",
       buyerName: t.buyerName || "-",
-      items: itemsText,
+      items: t.items || "-",
       totalAmount: t.totalAmount || 0,
       paymentType: t.paymentType || "-",
       paidAmount: t.paidAmount || 0,
       changeAmount: t.changeAmount || 0,
-      pointsEarned: earned,
+      pointsEarned: parseInt(t.totalPointsEarned) || 0,
       redeemed: 0,
+      remainingPoints: buyerPointsMaster[t.buyerName] || 0,
       staff: t.staff || "-"
     });
   });
@@ -176,25 +174,13 @@ async function loadHistory() {
       changeAmount: "-",
       pointsEarned: 0,
       redeemed: redeemed,
+      remainingPoints: buyerPointsMaster[buyer] || 0,
       staff: "-"
     });
   });
 
-  rawRows.sort((a,b)=> new Date(a.dateTime) - new Date(b.dateTime));
-
-  const buyerPoints = {};
-  historyRows = rawRows.map(r=>{
-    const prev = buyerPoints[r.buyerName] || 0;
-    const total = prev + r.pointsEarned - r.redeemed;
-    buyerPoints[r.buyerName] = total;
-    return {...r, remainingPoints: total};
-  });
-
-  // Override final balance with master
-  historyRows = historyRows.map(r=>({
-    ...r,
-    remainingPoints: buyerPointsMaster[r.buyerName] ?? r.remainingPoints
-  }));
+  // Sort newest first
+  historyRows = rawRows.sort((a,b)=> new Date(b.dateTime)-new Date(a.dateTime));
 
   const currentBuyerName = sessionStorage.getItem("currentBuyerName");
   if(currentBuyerName && buyerPointsMaster[currentBuyerName]!==undefined){
@@ -204,7 +190,6 @@ async function loadHistory() {
     document.getElementById("totalPointsDisplay").textContent = "⭐ Points Loaded";
   }
 
-  historyRows.sort((a,b)=> new Date(b.dateTime)-new Date(a.dateTime));
   renderHistory();
 }
 
