@@ -1,73 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Coffee Loyalty - Transaction & Redemption History</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
-  <style>
-    body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
-    .card { background: white; border-radius: 12px; padding: 24px; max-width: 1200px; margin: 40px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; }
-    th { cursor: pointer; }
-  </style>
-</head>
-
-<body>
-<div class="card">
-  <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">
-    ☕ Transaction & Redemption History
-  </h1>
-
-  <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
-    <button onclick="window.location.href='transaction.html'" class="bg-amber-700 text-white p-2 px-4 rounded-lg hover:bg-amber-800 transition">
-      ⬅ Back
-    </button>
-
-    <div class="flex items-center gap-4 flex-wrap">
-      <span id="totalPointsDisplay" class="font-bold text-amber-800 text-lg">Loading points...</span>
-
-      <input id="searchInput" type="text" placeholder="🔍 Search buyer name..." 
-             class="border border-amber-400 rounded-lg p-2 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-amber-500"/>
-
-      <button id="sortButton" class="bg-amber-600 text-white p-2 px-4 rounded-lg hover:bg-amber-700 transition">
-        🔤 Sort by Name
-      </button>
-
-      <button id="downloadExcel" class="bg-green-600 text-white p-2 px-4 rounded-lg hover:bg-green-700 transition">
-        ⬇️ Download Excel
-      </button>
-
-      <span id="staffNameDisplay" class="font-semibold text-amber-700"></span>
-    </div>
-  </div>
-
-  <div class="overflow-x-auto">
-    <table class="min-w-full bg-white rounded-lg text-sm">
-      <thead class="bg-amber-700 text-white">
-        <tr>
-          <th>Date/Time</th>
-          <th>Buyer Name</th>
-          <th>Items (Qty & Size)</th>
-          <th>Total (Rp)</th>
-          <th>Payment</th>
-          <th>Paid (Rp)</th>
-          <th>Change (Rp)</th>
-          <th>Points Earned</th>
-          <th>Redeemed (pts)</th>
-          <th>Remaining Points</th>
-          <th>Staff</th>
-        </tr>
-      </thead>
-      <tbody id="historyTable"></tbody>
-    </table>
-  </div>
-</div>
-
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
@@ -86,12 +16,22 @@ let buyerPointsMaster = {};
 let sortByName = false;
 let filteredRows = [];
 
-// Point conversion table
 const pointTable = {
   copyaren: {glass:1, pocket:2, "500ml":4, "1l":8},
   chocobara: {glass:1, pocket:2, "500ml":4, "1l":8},
   camericano: {glass:1, pocket:2, "500ml":4, "1l":8}
 };
+
+// Convert UTC timestamp to GMT+7 (Jakarta time)
+function toJakartaTime(timestamp) {
+  try {
+    const date = new Date(timestamp);
+    if (isNaN(date)) return "-";
+    return date.toLocaleString("en-GB", { timeZone: "Asia/Jakarta" });
+  } catch {
+    return "-";
+  }
+}
 
 document.addEventListener("DOMContentLoaded", async () => {
   const staffName = sessionStorage.getItem("staffName");
@@ -113,7 +53,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.getElementById("downloadExcel").addEventListener("click", downloadExcel);
   
-  // 🟢 Search event
   document.getElementById("searchInput").addEventListener("input", (e) => {
     const keyword = e.target.value.toLowerCase();
     filteredRows = historyRows.filter(r => (r.buyerName || "").toLowerCase().includes(keyword));
@@ -129,12 +68,11 @@ async function loadBuyerPoints() {
   });
 }
 
-// 🟤 Load both transactions and redeemHistory
 async function loadHistory() {
   const table = document.getElementById("historyTable");
   table.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">Loading...</td></tr>`;
 
-  const [transactionsSnap, redemptionsSnap] = await Promise.all([
+  const [transactionsSnap, redeemSnap] = await Promise.all([
     db.ref("transactions").once("value"),
     db.ref("redeemHistory").once("value")
   ]);
@@ -159,7 +97,7 @@ async function loadHistory() {
     });
 
     rawRows.push({
-      dateTime: t.dateTime,
+      dateTime: toJakartaTime(t.dateTime),
       buyerName: t.buyerName,
       items: itemsList.join(", ") || "-",
       totalAmount: t.totalAmount || 0,
@@ -168,36 +106,37 @@ async function loadHistory() {
       changeAmount: t.changeAmount || 0,
       pointsEarned: earned,
       redeemed: 0,
-      staff: t.staff || "-"
+      staff: t.staff || "-",
+      isRedeem: false
     });
   });
 
-  // 🔸 Redemptions
-  redemptionsSnap.forEach(child => {
+  // 🔸 Redemptions (from redeemHistory)
+  redeemSnap.forEach(child => {
     const r = child.val();
     if (!r) return;
-    const buyer = r.buyerName || "Unknown";
-    const redeemed = r.totalPointsUsed || r.pointsUsed || 0;
-    const items = r.itemName
-      ? `${r.itemName} (${redeemed} pts)`
-      : (r.redeemed
-          ? Object.entries(r.redeemed).map(([k, v]) => `${k} ${v.size} (${v.qty})`).join(", ")
-          : "Redeemed item");
+    const buyer = r.buyer || r.buyerName || "Unknown";
+    const redeemed = r.pointsUsed || r.totalPointsUsed || 0;
+    const product = r.product || "Redeemed Item";
+    const size = r.size ? ` (${r.size})` : "";
+    const dateTime = toJakartaTime(r.timestamp || r.dateTime || "-");
 
     rawRows.push({
-      dateTime: r.time || r.dateTime || "-",
+      dateTime: dateTime,
       buyerName: buyer,
-      items: items,
+      items: `${product}${size}`,
       totalAmount: "-",
       paymentType: "REDEEM",
       paidAmount: "-",
       changeAmount: "-",
       pointsEarned: 0,
       redeemed: redeemed,
-      staff: r.staff || "-"
+      staff: r.staff || "-",
+      isRedeem: true
     });
   });
 
+  // Sort by date
   rawRows.sort((a,b)=> new Date(a.dateTime) - new Date(b.dateTime));
 
   const buyerPoints = {};
@@ -238,7 +177,7 @@ function renderHistory(){
   if(sortByName) rowsToShow.sort((a,b)=>(a.buyerName||"").localeCompare(b.buyerName||""));
 
   table.innerHTML=rowsToShow.map(r=>`
-    <tr class="hover:bg-amber-50">
+    <tr class="hover:bg-amber-50 ${r.isRedeem ? 'bg-green-100 italic' : ''}">
       <td>${r.dateTime}</td>
       <td>${r.buyerName}</td>
       <td>${r.items}</td>
@@ -253,11 +192,15 @@ function renderHistory(){
     </tr>`).join("");
 }
 
+// ✅ Download only visible rows (filtered)
 function downloadExcel(){
-  if(historyRows.length===0){alert("No data to export!");return;}
+  const exportRows = filteredRows.length ? filteredRows : historyRows;
+  if(exportRows.length===0){alert("No data to export!");return;}
+
   const wsData=[["Date/Time","Buyer Name","Items","Total (Rp)","Payment","Paid (Rp)","Change (Rp)","Points Earned","Redeemed (pts)","Remaining Points","Staff"],
-    ...historyRows.map(r=>[
-      r.dateTime,r.buyerName,r.items,r.totalAmount==="-"?"":r.totalAmount,
+    ...exportRows.map(r=>[
+      r.dateTime,r.buyerName,r.items,
+      r.totalAmount==="-"?"":r.totalAmount,
       r.paymentType,r.paidAmount==="-"?"":r.paidAmount,
       r.changeAmount==="-"?"":r.changeAmount,
       r.pointsEarned||"",r.redeemed||"",r.remainingPoints,r.staff
@@ -270,5 +213,3 @@ function downloadExcel(){
   XLSX.writeFile(wb,`Coffee_History_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}.xlsx`);
 }
 </script>
-</body>
-</html>
