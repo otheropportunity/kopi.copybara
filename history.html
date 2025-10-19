@@ -42,6 +42,12 @@
     </div>
   </div>
 
+  <!-- 🔍 Search box for buyer name -->
+  <div style="margin: 10px 0; text-align: right;">
+    <input type="text" id="buyerSearch" placeholder="Search Buyer Name..."
+           style="padding:6px; border-radius:6px; border:1px solid #ccc; width:220px;">
+  </div>
+
   <div class="overflow-x-auto">
     <table class="min-w-full bg-white rounded-lg text-sm">
       <thead class="bg-amber-700 text-white">
@@ -98,6 +104,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   document.getElementById("downloadExcel").addEventListener("click", downloadExcel);
+
+  // 🔍 Add live search filter
+  document.getElementById("buyerSearch").addEventListener("keyup", function() {
+    const filter = this.value.toLowerCase();
+    const rows = document.querySelectorAll("#historyTable tr");
+    rows.forEach(row => {
+      const buyerName = row.cells[1]?.innerText.toLowerCase() || "";
+      row.style.display = buyerName.includes(filter) ? "" : "none";
+    });
+  });
 });
 
 // 🕒 Real-time clock on top
@@ -121,16 +137,23 @@ async function loadTransactions(){
     const t=child.val();
     if(!t || !t.buyerName) return;
 
-    const itemsSummary = [];
-    if(t.summaryGlass>0) itemsSummary.push(`Glass (${t.summaryGlass})`);
-    if(t.summaryPocket>0) itemsSummary.push(`Pocket (${t.summaryPocket})`);
-    if(t.summary500ml>0) itemsSummary.push(`500ml (${t.summary500ml})`);
-    if(t.summary1L>0) itemsSummary.push(`1L (${t.summary1L})`);
+    // ✅ Use 'items' field if available; otherwise, fallback to summaries
+    let itemsValue = "-";
+    if (t.items && t.items.trim() !== "") {
+      itemsValue = t.items;
+    } else {
+      const itemsSummary = [];
+      if(t.summaryGlass>0) itemsSummary.push(`Glass (${t.summaryGlass})`);
+      if(t.summaryPocket>0) itemsSummary.push(`Pocket (${t.summaryPocket})`);
+      if(t.summary500ml>0) itemsSummary.push(`500ml (${t.summary500ml})`);
+      if(t.summary1L>0) itemsSummary.push(`1L (${t.summary1L})`);
+      if(itemsSummary.length>0) itemsValue = itemsSummary.join(", ");
+    }
 
     transactionsData.push({
       dateTime: t.dateTime || "-",
       buyerName: t.buyerName || "-",
-      items: itemsSummary.join(", ") || t.items || "-",
+      items: itemsValue,
       totalAmount: t.totalAmount || 0,
       paymentType: t.paymentType || "-",
       paidAmount: t.paidAmount || 0,
