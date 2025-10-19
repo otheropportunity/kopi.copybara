@@ -17,9 +17,10 @@
 </head>
 <body>
   <div class="card">
-    <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">
-      ☕ Transaction & Redemption History
-    </h1>
+    <div class="flex justify-between items-center mb-2">
+      <h1 class="text-2xl font-bold text-amber-800">☕ Transaction & Redemption History</h1>
+      <span id="clock" class="text-sm text-gray-600"></span>
+    </div>
 
     <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
       <button onclick="window.location.href='transaction.html'" class="bg-amber-700 text-white p-2 px-4 rounded-lg hover:bg-amber-800 transition">
@@ -79,6 +80,7 @@
     let historyRows = [];
     let buyerPointsMaster = {};
     let sortByName = false;
+    let lastRenderedJSON = "";
 
     document.addEventListener("DOMContentLoaded", async () => {
       const staffName = sessionStorage.getItem("staffName");
@@ -87,11 +89,14 @@
         window.location.href = "index.html";
         return;
       }
-
       document.getElementById("staffNameDisplay").textContent = "Logged in as: " + staffName;
 
+      startClock();
       await loadBuyerPoints();
       await loadHistory();
+
+      // Auto refresh every 10 seconds
+      setInterval(loadHistory, 10000);
 
       document.getElementById("sortButton").addEventListener("click", () => {
         sortByName = !sortByName;
@@ -100,11 +105,19 @@
       });
 
       document.getElementById("downloadExcel").addEventListener("click", downloadExcel);
-
       document.getElementById("searchInput").addEventListener("input", (e) => {
         renderHistory(e.target.value.trim().toLowerCase());
       });
     });
+
+    function startClock() {
+      const clock = document.getElementById("clock");
+      setInterval(() => {
+        const now = new Date();
+        const timeStr = now.toLocaleString("en-GB", { hour12: false });
+        clock.textContent = `🕒 ${timeStr}`;
+      }, 1000);
+    }
 
     async function loadBuyerPoints() {
       const snap = await db.ref("buyers").once("value");
@@ -114,12 +127,8 @@
       });
     }
 
-    // 🟤 Load Transactions + Redemptions
+    // 🟤 Load Transactions + Redeem History
     async function loadHistory() {
-      const table = document.getElementById("historyTable");
-      table.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">Loading...</td></tr>`;
-
-      // ⚡ Use redeemHistory instead of redemptions
       const [transactionsSnap, redemptionsSnap] = await Promise.all([
         db.ref("transactions").once("value"),
         db.ref("redeemHistory").once("value")
@@ -133,7 +142,6 @@
         if (!t || !t.buyerName) return;
         const itemsText = t.items || "-";
         const earned = parseInt(t.totalPointsEarned) || 0;
-
         rawRows.push({
           dateTime: t.dateTime || "-",
           buyerName: t.buyerName || "-",
@@ -148,7 +156,7 @@
         });
       });
 
-      // 🔸 Redemptions (from redeemHistory)
+      // 🔸 Redeem History
       redemptionsSnap.forEach(child => {
         const r = child.val();
         if (!r) return;
@@ -156,7 +164,9 @@
         const redeemed = r.totalPointsUsed || r.pointsUsed || 0;
         const items = r.itemName
           ? `${r.itemName} (${r.pointsUsed} pts)`
-          : (r.redeemed ? Object.entries(r.redeemed).map(([k, v]) => `${k} ${v.size} (${v.qty})`).join(", ") : "Redeemed item");
+          : (r.redeemedItems
+            ? Object.entries(r.redeemedItems).map(([k, v]) => `${k} ${v.size || ""} (${v.qty || 1})`).join(", ")
+            : "Redeemed item");
 
         rawRows.push({
           dateTime: r.time || r.dateTime || "-",
@@ -172,7 +182,7 @@
         });
       });
 
-      rawRows.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+      rawRows.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
 
       const buyerPoints = {};
       historyRows = rawRows.map(r => {
@@ -188,15 +198,11 @@
         remainingPoints: buyerPointsMaster[r.buyerName] ?? r.remainingPoints
       }));
 
-      const currentBuyerName = sessionStorage.getItem("currentBuyerName");
-      if (currentBuyerName && buyerPointsMaster[currentBuyerName] !== undefined) {
-        document.getElementById("totalPointsDisplay").textContent = `⭐ ${currentBuyerName}: ${buyerPointsMaster[currentBuyerName]} pts`;
-      } else {
-        document.getElementById("totalPointsDisplay").textContent = "⭐ Points Loaded";
+      const json = JSON.stringify(historyRows);
+      if (json !== lastRenderedJSON) {
+        lastRenderedJSON = json;
+        renderHistory(document.getElementById("searchInput").value.trim().toLowerCase());
       }
-
-      historyRows.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
-      renderHistory();
     }
 
     // 🔍 Render + Search
