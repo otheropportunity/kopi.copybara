@@ -19,25 +19,16 @@
 <div class="card">
   <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">☕ Transaction & Redemption History</h1>
 
-  <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
-    <button onclick="window.location.href='transaction.html'" class="bg-amber-700 text-white p-2 px-4 rounded-lg hover:bg-amber-800 transition">
-      ⬅ Back
-    </button>
+  <div class="flex justify-between items-center mb-4 flex-wrap gap-3">
+    <button onclick="window.location.href='transaction.html'" class="bg-amber-700 text-white p-2 px-4 rounded-lg hover:bg-amber-800 transition">⬅ Back</button>
 
-    <div class="flex items-center gap-4 flex-wrap">
+    <div class="flex items-center gap-2 flex-wrap">
+      <input id="searchInput" type="text" placeholder="🔍 Search by buyer name..." class="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500" onkeyup="filterByName()" />
       <span id="totalPointsDisplay" class="font-bold text-amber-800 text-lg">Loading points...</span>
 
-      <input id="searchInput" type="text" placeholder="🔍 Search buyer name..." 
-        class="border border-amber-400 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-amber-500" 
-        style="min-width:200px;" />
+      <button id="sortButton" class="bg-amber-600 text-white p-2 px-4 rounded-lg hover:bg-amber-700 transition">🔤 Sort by Name</button>
 
-      <button id="sortButton" class="bg-amber-600 text-white p-2 px-4 rounded-lg hover:bg-amber-700 transition">
-        🔤 Sort by Name
-      </button>
-
-      <button id="downloadExcel" class="bg-green-600 text-white p-2 px-4 rounded-lg hover:bg-green-700 transition">
-        ⬇️ Download Excel
-      </button>
+      <button id="downloadExcel" class="bg-green-600 text-white p-2 px-4 rounded-lg hover:bg-green-700 transition">⬇️ Download Excel</button>
 
       <span id="staffNameDisplay" class="font-semibold text-amber-700"></span>
     </div>
@@ -103,19 +94,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.getElementById("sortButton").addEventListener("click", () => {
     sortByName = !sortByName;
-    renderHistory();
+    renderHistory(filteredRows.length ? filteredRows : historyRows);
     document.getElementById("sortButton").textContent = sortByName ? "📅 Sort by Date" : "🔤 Sort by Name";
   });
 
   document.getElementById("downloadExcel").addEventListener("click", downloadExcel);
-
-  document.getElementById("searchInput").addEventListener("input", (e) => {
-    const keyword = e.target.value.toLowerCase().trim();
-    filteredRows = keyword
-      ? historyRows.filter(r => (r.buyerName || "").toLowerCase().includes(keyword))
-      : [...historyRows];
-    renderHistory();
-  });
 });
 
 async function loadBuyerPoints() {
@@ -137,14 +120,13 @@ async function loadHistory() {
 
   let rawRows = [];
 
-  // Transactions
+  // 🟢 Transactions
   transactionsSnap.forEach(child => {
     const t = child.val();
     if (!t || !t.buyerName) return;
 
     const itemsList = [];
     let earned = 0;
-
     [["copyaren","Copyaren"],["chocobara","Chocobara"],["camericano","Camericano"]].forEach(([key,label])=>{
       const qty = parseInt(t[`${key}Qty`]) || 0;
       const size = (t[`${key}Size`] || "").toLowerCase();
@@ -156,7 +138,7 @@ async function loadHistory() {
     });
 
     rawRows.push({
-      dateTime: t.dateTime,
+      dateTime: t.dateTime || "-",
       buyerName: t.buyerName,
       items: itemsList.join(", ") || "-",
       totalAmount: t.totalAmount || 0,
@@ -169,34 +151,35 @@ async function loadHistory() {
     });
   });
 
-  // Redemptions
+  // 🔸 Redemptions
   redemptionsSnap.forEach(child => {
     const r = child.val();
-    if (!r) return;
-    const buyer = r.buyerName || "Unknown";
-    const redeemed = r.totalPointsUsed || r.pointsUsed || 0;
+    if (!r || !r.buyerName) return;
+
+    const redeemedPts = r.totalPointsUsed || r.pointsUsed || 0;
     const items = r.itemName
-      ? `${r.itemName} (${redeemed} pts)`
+      ? `${r.itemName} (${redeemedPts} pts)`
       : (r.redeemed
           ? Object.entries(r.redeemed).map(([k, v]) => `${k} ${v.size} (${v.qty})`).join(", ")
           : "Redeemed item");
+
     rawRows.push({
       dateTime: r.time || r.dateTime || "-",
-      buyerName: buyer,
+      buyerName: r.buyerName,
       items: items,
       totalAmount: "-",
       paymentType: "REDEEM",
       paidAmount: "-",
       changeAmount: "-",
       pointsEarned: 0,
-      redeemed: redeemed,
+      redeemed: redeemedPts,
       staff: r.staff || "-"
     });
   });
 
   rawRows.sort((a,b)=> new Date(a.dateTime) - new Date(b.dateTime));
-  const buyerPoints = {};
 
+  const buyerPoints = {};
   historyRows = rawRows.map(r=>{
     const prev = buyerPoints[r.buyerName] || 0;
     const total = prev + r.pointsEarned - r.redeemed;
@@ -204,26 +187,25 @@ async function loadHistory() {
     return {...r, remainingPoints: total};
   });
 
+  // Override with master points
   historyRows = historyRows.map(r=>({
     ...r,
     remainingPoints: buyerPointsMaster[r.buyerName] ?? r.remainingPoints
   }));
 
-  document.getElementById("totalPointsDisplay").textContent = "⭐ Points Loaded";
-
   historyRows.sort((a,b)=> new Date(b.dateTime)-new Date(a.dateTime));
-  filteredRows = [...historyRows];
-  renderHistory();
+  renderHistory(historyRows);
 }
 
-function renderHistory(){
+function renderHistory(rows){
   const table=document.getElementById("historyTable");
-  if(filteredRows.length===0){
+  if(rows.length===0){
     table.innerHTML=`<tr><td colspan="11" class="text-center py-4 text-gray-500">No data.</td></tr>`;
     return;
   }
-  if(sortByName) filteredRows.sort((a,b)=>(a.buyerName||"").localeCompare(b.buyerName||""));
-  table.innerHTML=filteredRows.map(r=>`
+  if(sortByName) rows.sort((a,b)=>(a.buyerName||"").localeCompare(b.buyerName||""));
+
+  table.innerHTML=rows.map(r=>`
     <tr class="hover:bg-amber-50">
       <td>${r.dateTime}</td>
       <td>${r.buyerName}</td>
@@ -239,20 +221,34 @@ function renderHistory(){
     </tr>`).join("");
 }
 
-// Export only filtered data
+function filterByName(){
+  const query = document.getElementById("searchInput").value.toLowerCase().trim();
+  if(!query){
+    filteredRows = [];
+    renderHistory(historyRows);
+    return;
+  }
+  filteredRows = historyRows.filter(r => r.buyerName.toLowerCase().includes(query));
+  renderHistory(filteredRows);
+}
+
 function downloadExcel(){
-  if(filteredRows.length===0){alert("No data to export!");return;}
+  const exportRows = filteredRows.length ? filteredRows : historyRows;
+  if(exportRows.length===0){alert("No data to export!");return;}
+
   const wsData=[["Date/Time","Buyer Name","Items","Total (Rp)","Payment","Paid (Rp)","Change (Rp)","Points Earned","Redeemed (pts)","Remaining Points","Staff"],
-    ...filteredRows.map(r=>[
+    ...exportRows.map(r=>[
       r.dateTime,r.buyerName,r.items,r.totalAmount==="-"?"":r.totalAmount,
       r.paymentType,r.paidAmount==="-"?"":r.paidAmount,
       r.changeAmount==="-"?"":r.changeAmount,
       r.pointsEarned||"",r.redeemed||"",r.remainingPoints,r.staff
     ])
   ];
+
   const wb=XLSX.utils.book_new();
   const ws=XLSX.utils.aoa_to_sheet(wsData);
   XLSX.utils.book_append_sheet(wb,ws,"History");
+
   const now=new Date();
   XLSX.writeFile(wb,`Coffee_History_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}.xlsx`);
 }
