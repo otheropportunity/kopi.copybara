@@ -3,184 +3,189 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Buyer History</title>
-  <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-database-compat.js"></script>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <title>Coffee Loyalty - Transaction & Redemption History</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
+    .card { background: white; border-radius: 12px; padding: 24px; max-width: 1200px; margin: 40px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; }
+    th { cursor: pointer; }
+  </style>
 </head>
-<body class="bg-yellow-50 flex justify-center items-center min-h-screen">
-  <div class="bg-white rounded-2xl shadow-md p-6 w-full max-w-6xl">
-    <h2 class="text-center text-2xl font-bold text-yellow-800 mb-2">🧾 Buyer Transaction & Redeem History</h2>
-    <p class="text-center text-sm text-gray-500 mb-4">Complete purchase & redeem logs</p>
 
-    <!-- Buyer Summary -->
-    <div id="buyerSummary" class="bg-yellow-100 border border-yellow-300 rounded-xl p-3 mb-4 text-center text-sm">
-      <p><span class="font-bold text-yellow-800">Buyer:</span> <span id="buyerName">Loading...</span></p>
-      <p id="totalPoints" class="mt-1 font-semibold text-yellow-700">Total Points: 0</p>
-    </div>
+<body>
+<div class="card">
+  <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+    <h1 class="text-2xl font-bold text-amber-800">☕ Transaction & Redemption History</h1>
+    <div id="clock" class="text-lg font-semibold text-amber-700"></div>
+  </div>
 
-    <!-- Filter buttons -->
-    <div class="flex justify-between items-center mb-3">
-      <div class="space-x-2">
-        <button id="showAllBtn" class="bg-yellow-400 hover:bg-yellow-500 text-white px-3 py-1 rounded-md text-sm font-semibold">Show All</button>
-        <button id="purchaseBtn" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-md text-sm font-semibold">Purchase</button>
-        <button id="redeemBtn" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-sm font-semibold">Redeem</button>
-      </div>
-      <button id="downloadBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md text-sm font-semibold">📥 Download .xlsx</button>
-    </div>
+  <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+    <button onclick="window.location.href='transaction.html'" class="bg-amber-700 text-white p-2 px-4 rounded-lg hover:bg-amber-800 transition">
+      ⬅ Back
+    </button>
 
-    <!-- History Table -->
-    <div class="overflow-x-auto">
-      <table class="min-w-full border border-gray-300 text-sm text-gray-700">
-        <thead class="bg-yellow-200 text-yellow-900">
-          <tr>
-            <th class="border px-2 py-1">Date & Time</th>
-            <th class="border px-2 py-1">Buyer ID</th>
-            <th class="border px-2 py-1">Buyer Name</th>
-            <th class="border px-2 py-1">Information / Item</th>
-            <th class="border px-2 py-1">Payment Type</th>
-            <th class="border px-2 py-1">Paid Amount</th>
-            <th class="border px-2 py-1">Change</th>
-            <th class="border px-2 py-1">Total Amount</th>
-            <th class="border px-2 py-1">Points Earned/Used</th>
-            <th class="border px-2 py-1">Updated Total Points</th>
-            <th class="border px-2 py-1">Staff</th>
-            <th class="border px-2 py-1">Type</th>
-          </tr>
-        </thead>
-        <tbody id="historyBody" class="text-center bg-white">
-          <tr><td colspan="12" class="py-3 text-gray-400">Loading...</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="mt-5 text-center">
-      <button onclick="window.location.href='transaction.html'"
-        class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-xl">
-        🔙 Back to Transaction
+    <div class="flex items-center gap-4 flex-wrap">
+      <button id="sortButton" class="bg-amber-600 text-white p-2 px-4 rounded-lg hover:bg-amber-700 transition">
+        🔤 Sort by Name
       </button>
+
+      <button id="downloadExcel" class="bg-green-600 text-white p-2 px-4 rounded-lg hover:bg-green-700 transition">
+        ⬇️ Download Excel
+      </button>
+
+      <span id="staffNameDisplay" class="font-semibold text-amber-700"></span>
     </div>
   </div>
 
-  <script>
-    // 🔧 Firebase setup
-    const firebaseConfig = {
-      apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
-      authDomain: "kopi-copybara.firebaseapp.com",
-      databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "kopi-copybara",
-      storageBucket: "kopi-copybara.appspot.com",
-      messagingSenderId: "729875984861",
-      appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    let historyData = [];
-
-    const buyerInfo = JSON.parse(localStorage.getItem("buyerInfo")) || {};
-    const buyerId = buyerInfo.id || sessionStorage.getItem("buyerId");
-    const buyerName = buyerInfo.name || sessionStorage.getItem("buyerName") || "Unknown Buyer";
-    document.getElementById("buyerName").innerText = buyerName;
-
-    async function loadHistory() {
-      const tbody = document.getElementById("historyBody");
-      if (!buyerId) {
-        tbody.innerHTML = `<tr><td colspan="12" class="py-3 text-red-500">No buyer selected.</td></tr>`;
-        return;
-      }
-
-      // Fetch buyer info
-      const buyerSnap = await db.ref(`buyers/${buyerId}`).get();
-      const buyer = buyerSnap.val() || {};
-      document.getElementById("totalPoints").innerText = `Total Points: ${buyer.masterPoints || 0}`;
-
-      // Fetch both transaction and redeem history
-      const [transSnap, redeemSnap] = await Promise.all([
-        db.ref(`transactions`).orderByChild("buyerId").equalTo(buyerId).get(),
-        db.ref(`redeemHistory`).orderByChild("buyer").equalTo(buyerId).get()
-      ]);
-
-      historyData = [];
-
-      // 🟢 Purchase transactions
-      if (transSnap.exists()) {
-        transSnap.forEach(t => {
-          const d = t.val();
-          historyData.push({
-            date: d.dateTime || "-",
-            buyerId: d.buyerId || "-",
-            buyerName: d.buyerName || "-",
-            info: d.info || "-", // optional info if you saved
-            paymentType: d.paymentType || "-",
-            paid: d.paidAmount || 0,
-            change: d.changeAmount || 0,
-            totalAmount: d.totalAmount || 0,
-            points: d.totalPointsEarned || 0,
-            updatedPoints: d.updatedMasterPoints || 0,
-            staff: d.staff || "-",
-            type: "Purchase"
-          });
-        });
-      }
-
-      // 🔴 Redeem history
-      if (redeemSnap.exists()) {
-        redeemSnap.forEach(r => {
-          const d = r.val();
-          historyData.push({
-            date: d.timestamp || "-",
-            buyerId: d.buyer || "-",
-            buyerName: buyerName,
-            info: `${d.product || '-'} (${d.size || '-'})`,
-            paymentType: "-",
-            paid: "-",
-            change: "-",
-            totalAmount: "-",
-            points: `-${d.pointsUsed || 0}`,
-            updatedPoints: buyer.masterPoints || 0,
-            staff: d.staff || "-",
-            type: "Redeem"
-          });
-        });
-      }
-
-      // Sort newest first
-      historyData.sort((a, b) => new Date(b.date) - new Date(a.date));
-      renderTable(historyData);
-    }
-
-    function renderTable(data) {
-      const tbody = document.getElementById("historyBody");
-      if (data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="12" class="py-3 text-gray-400">No history found.</td></tr>`;
-        return;
-      }
-
-      tbody.innerHTML = data.map(h => `
-        <tr class="${h.type === 'Redeem' ? 'bg-red-50' : 'bg-green-50'}">
-          <td class="border px-2 py-1">${h.date}</td>
-          <td class="border px-2 py-1">${h.buyerId}</td>
-          <td class="border px-2 py-1">${h.buyerName}</td>
-          <td class="border px-2 py-1">${h.info}</td>
-          <td class="border px-2 py-1">${h.paymentType}</td>
-          <td class="border px-2 py-1">${h.paid}</td>
-          <td class="border px-2 py-1">${h.change}</td>
-          <td class="border px-2 py-1">${h.totalAmount}</td>
-          <td class="border px-2 py-1">${h.points}</td>
-          <td class="border px-2 py-1">${h.updatedPoints}</td>
-          <td class="border px-2 py-1">${h.staff}</td>
-          <td class="border px-2 py-1 font-semibold ${h.type === 'Redeem' ? 'text-red-700' : 'text-green-700'}">${h.type}</td>
+  <div class="overflow-x-auto">
+    <table class="min-w-full bg-white rounded-lg text-sm">
+      <thead class="bg-amber-700 text-white">
+        <tr>
+          <th>Date/Time</th>
+          <th>Buyer Name</th>
+          <th>Items</th>
+          <th>Total (Rp)</th>
+          <th>Payment</th>
+          <th>Paid (Rp)</th>
+          <th>Change (Rp)</th>
+          <th>Points Earned</th>
+          <th>Remaining Points</th>
+          <th>Staff</th>
         </tr>
-      `).join("");
-    }
+      </thead>
+      <tbody id="historyTable"></tbody>
+    </table>
+  </div>
+</div>
 
-    // Filter buttons
-    document.getElementById("showAllBtn").onclick = () => renderTable(historyData);
-    document.getElementById("purchaseBtn").onclick = () => renderTable(historyData.filter(h => h.type === "Purchase"));
-    document.getElementById("redeemBtn").onclick = () => renderTable(historyData.filter(h => h.type === "Redeem"));
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
+  authDomain: "kopi-copybara.firebaseapp.com",
+  databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "kopi-copybara",
+  storageBucket: "kopi-copybara.appspot.com",
+  messagingSenderId: "729875984861",
+  appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-    loadHistory();
-  </script>
+let transactionsData = [];
+let sortByName = false;
+
+document.addEventListener("DOMContentLoaded", async () => {
+  const staffName = sessionStorage.getItem("staffName");
+  if (!staffName || staffName === "null") {
+    alert("Session expired or not logged in. Please login again.");
+    window.location.href = "index.html";
+    return;
+  }
+  document.getElementById("staffNameDisplay").textContent = "Logged in as: " + staffName;
+
+  startClock();
+  loadTransactions();
+
+  document.getElementById("sortButton").addEventListener("click", () => {
+    sortByName = !sortByName;
+    renderTransactions();
+    document.getElementById("sortButton").textContent = sortByName ? "📅 Sort by Date" : "🔤 Sort by Name";
+  });
+
+  document.getElementById("downloadExcel").addEventListener("click", downloadExcel);
+});
+
+// 🕒 Real-time clock on top
+function startClock(){
+  const clock=document.getElementById("clock");
+  setInterval(()=>{
+    const now=new Date();
+    clock.textContent=now.toLocaleString('en-GB',{hour12:false});
+  },1000);
+}
+
+// 🔹 Load Transactions from Firebase
+async function loadTransactions(){
+  const table=document.getElementById("historyTable");
+  table.innerHTML=`<tr><td colspan="10" class="text-center py-4 text-gray-500">Loading...</td></tr>`;
+
+  const snap=await db.ref("transactions").once("value");
+  transactionsData=[];
+
+  snap.forEach(child=>{
+    const t=child.val();
+    if(!t || !t.buyerName) return;
+
+    const itemsSummary = [];
+    if(t.summaryGlass>0) itemsSummary.push(`Glass (${t.summaryGlass})`);
+    if(t.summaryPocket>0) itemsSummary.push(`Pocket (${t.summaryPocket})`);
+    if(t.summary500ml>0) itemsSummary.push(`500ml (${t.summary500ml})`);
+    if(t.summary1L>0) itemsSummary.push(`1L (${t.summary1L})`);
+
+    transactionsData.push({
+      dateTime: t.dateTime || "-",
+      buyerName: t.buyerName || "-",
+      items: itemsSummary.join(", ") || t.items || "-",
+      totalAmount: t.totalAmount || 0,
+      paymentType: t.paymentType || "-",
+      paidAmount: t.paidAmount || 0,
+      changeAmount: t.changeAmount || 0,
+      totalPointsEarned: t.totalPointsEarned || 0,
+      updatedMasterPoints: t.updatedMasterPoints || 0,
+      staff: t.staff || "-"
+    });
+  });
+
+  transactionsData.sort((a,b)=> new Date(b.dateTime) - new Date(a.dateTime));
+  renderTransactions();
+}
+
+function renderTransactions(){
+  const table=document.getElementById("historyTable");
+  if(transactionsData.length===0){
+    table.innerHTML=`<tr><td colspan="10" class="text-center py-4 text-gray-500">No transaction data found.</td></tr>`;
+    return;
+  }
+
+  if(sortByName) transactionsData.sort((a,b)=>(a.buyerName||"").localeCompare(b.buyerName||""));
+
+  table.innerHTML=transactionsData.map(t=>`
+    <tr class="hover:bg-amber-50">
+      <td>${t.dateTime}</td>
+      <td>${t.buyerName}</td>
+      <td>${t.items}</td>
+      <td>Rp ${Number(t.totalAmount).toLocaleString()}</td>
+      <td>${t.paymentType}</td>
+      <td>Rp ${Number(t.paidAmount).toLocaleString()}</td>
+      <td>Rp ${Number(t.changeAmount).toLocaleString()}</td>
+      <td>${t.totalPointsEarned}</td>
+      <td class="font-semibold text-amber-700">${t.updatedMasterPoints}</td>
+      <td>${t.staff}</td>
+    </tr>
+  `).join("");
+}
+
+// ✅ Export to Excel
+function downloadExcel(){
+  if(transactionsData.length===0){alert("No data to export!");return;}
+  const wsData=[["Date/Time","Buyer Name","Items","Total (Rp)","Payment","Paid (Rp)","Change (Rp)","Points Earned","Remaining Points","Staff"],
+    ...transactionsData.map(t=>[
+      t.dateTime,t.buyerName,t.items,t.totalAmount,
+      t.paymentType,t.paidAmount,t.changeAmount,
+      t.totalPointsEarned,t.updatedMasterPoints,t.staff
+    ])
+  ];
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  XLSX.utils.book_append_sheet(wb,ws,"Transactions");
+  const now=new Date();
+  XLSX.writeFile(wb,`Coffee_Transactions_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}.xlsx`);
+}
+</script>
 </body>
 </html>
