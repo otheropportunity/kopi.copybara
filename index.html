@@ -37,12 +37,8 @@
       max-width: 400px;
       margin: 60px auto;
     }
-    button {
-      transition: 0.3s;
-    }
-    button:hover {
-      opacity: 0.85;
-    }
+    button { transition: 0.3s; }
+    button:hover { opacity: 0.85; }
   </style>
 </head>
 
@@ -89,22 +85,35 @@
         Login
       </button>
     </div>
+
+    <!-- Hidden Change Password Panel (shows after member login) -->
+    <div id="changePassPanel" class="hidden mt-6 border-t pt-4">
+      <h2 class="text-lg font-semibold text-center text-amber-800 mb-3">🔑 Change Password</h2>
+
+      <input id="oldPass" type="password" class="w-full border rounded p-2 mb-2" placeholder="Current Password" />
+      <input id="newPass" type="password" class="w-full border rounded p-2 mb-2" placeholder="New Password" />
+      <input id="confirmPass" type="password" class="w-full border rounded p-2 mb-3" placeholder="Confirm New Password" />
+
+      <button onclick="updatePassword()" class="w-full bg-yellow-600 text-white p-2 rounded-lg mb-2 hover:bg-yellow-700">
+        Save Password
+      </button>
+      <button onclick="logoutUser()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg hover:bg-gray-400">
+        Logout
+      </button>
+    </div>
   </div>
 
   <script>
     const db = firebase.database();
-
-    // === Show master password field for staff registration ===
     const staffMasterDiv = document.getElementById('staffMasterDiv');
+
+    // === Show master password for staff registration ===
     document.getElementById('userType').addEventListener('change', function() {
-      if (this.value === 'staff') {
-        staffMasterDiv.classList.remove('hidden');
-      } else {
-        staffMasterDiv.classList.add('hidden');
-      }
+      if (this.value === 'staff') staffMasterDiv.classList.remove('hidden');
+      else staffMasterDiv.classList.add('hidden');
     });
 
-    // === Register New User ===
+    // === Register User ===
     function registerUser() {
       const role = document.getElementById("userType").value;
       const name = document.getElementById("regName").value.trim();
@@ -112,96 +121,98 @@
       const email = document.getElementById("regEmail").value.trim();
       const password = document.getElementById("regPassword").value.trim();
 
-      if (!role || !name || !phone || !email || !password) {
-        alert("Please fill all fields.");
-        return;
-      }
+      if (!role || !name || !phone || !email || !password) return alert("Please fill all fields.");
 
       if (role === "staff") {
         const master = document.getElementById("staffMasterPassword").value.trim();
-        if (master !== "230420") {
-          alert("Invalid master password for staff registration!");
-          return;
-        }
+        if (master !== "230420") return alert("Invalid master password for staff registration!");
       }
 
       const userKey = email.replace(/[.@]/g, "_");
       const ref = db.ref(role === "staff" ? "staffs/" + userKey : "buyers/" + userKey);
 
       ref.set({
-        name,
-        phone,
-        email,
-        password,
-        role,
+        name, phone, email, password, role,
         points: role === "buyer" ? 0 : null,
         createdAt: new Date().toISOString()
-      })
-      .then(() => {
-        alert(role === "staff" ? "✅ Staff registered successfully!" : "✅ Member registered successfully!");
-
-        // === Clear registration fields ===
+      }).then(() => {
+        alert(`✅ ${role === "staff" ? "Staff" : "Member"} registered successfully!`);
+        document.querySelectorAll("#registerSection input").forEach(i => i.value = "");
         document.getElementById("userType").value = "";
-        document.getElementById("regName").value = "";
-        document.getElementById("regPhone").value = "";
-        document.getElementById("regEmail").value = "";
-        document.getElementById("regPassword").value = "";
-        document.getElementById("staffMasterPassword").value = "";
         staffMasterDiv.classList.add('hidden');
-      })
-      .catch(err => alert("Error: " + err.message));
+      }).catch(err => alert("Error: " + err.message));
     }
 
     // === Login Logic ===
     function loginUser() {
       const identifier = document.getElementById("loginIdentifier").value.trim();
       const password = document.getElementById("loginPassword").value.trim();
-
-      if (!identifier || !password) {
-        alert("Please fill all login fields.");
-        return;
-      }
+      if (!identifier || !password) return alert("Please fill all login fields.");
 
       const rolePaths = ["buyers", "staffs"];
       let found = false;
 
       Promise.all(
-        rolePaths.map(rolePath =>
-          db.ref(rolePath).once("value").then(snapshot => ({ rolePath, snapshot }))
-        )
-      )
-      .then(results => {
+        rolePaths.map(rolePath => db.ref(rolePath).once("value").then(snapshot => ({ rolePath, snapshot })))
+      ).then(results => {
         results.forEach(({ rolePath, snapshot }) => {
           snapshot.forEach(child => {
             const data = child.val();
             if ((data.email === identifier || data.phone === identifier) && data.password === password) {
               found = true;
+
               if (rolePath === "staffs") {
                 sessionStorage.setItem("staffName", data.name);
                 sessionStorage.setItem("userRole", "staff");
                 alert("✅ Welcome, Staff " + data.name);
                 window.location.href = "transaction.html";
-              } else if (rolePath === "buyers") {
+              } else {
+                sessionStorage.setItem("buyerKey", child.key);
                 sessionStorage.setItem("buyerName", data.name);
                 sessionStorage.setItem("userRole", "member");
-                alert("✅ Welcome, " + data.name);
-                window.location.href = "redeem.html";
+                document.getElementById("loginSection").classList.add("hidden");
+                document.getElementById("registerSection").classList.add("hidden");
+                document.getElementById("changePassPanel").classList.remove("hidden");
+                alert("✅ Welcome, " + data.name + "! You can change your password below.");
               }
             }
           });
         });
 
-        if (!found) {
-          alert("❌ Invalid credentials. Please try again.");
-        } else {
-          // === Clear login fields ===
-          document.getElementById("loginIdentifier").value = "";
-          document.getElementById("loginPassword").value = "";
-        }
-      })
-      .catch(err => {
-        alert("⚠️ Login error: " + err.message);
+        if (!found) alert("❌ Invalid credentials.");
+      }).catch(err => alert("⚠️ Login error: " + err.message));
+    }
+
+    // === Update Password ===
+    function updatePassword() {
+      const buyerKey = sessionStorage.getItem("buyerKey");
+      if (!buyerKey) return alert("⚠️ Session expired. Please login again.");
+
+      const oldP = document.getElementById("oldPass").value.trim();
+      const newP = document.getElementById("newPass").value.trim();
+      const confirmP = document.getElementById("confirmPass").value.trim();
+
+      db.ref("buyers/" + buyerKey).once("value").then(snap => {
+        const data = snap.val();
+        if (!data) return alert("❌ Member not found.");
+
+        if (oldP !== data.password) return alert("❌ Old password incorrect!");
+        if (newP.length < 4) return alert("⚠️ Password must be at least 4 characters.");
+        if (newP !== confirmP) return alert("❌ New passwords do not match.");
+
+        db.ref("buyers/" + buyerKey).update({ password: newP }).then(() => {
+          alert("✅ Password updated successfully!");
+          document.getElementById("oldPass").value = "";
+          document.getElementById("newPass").value = "";
+          document.getElementById("confirmPass").value = "";
+        });
       });
+    }
+
+    // === Logout ===
+    function logoutUser() {
+      sessionStorage.clear();
+      location.reload();
     }
   </script>
 </body>
