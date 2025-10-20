@@ -77,15 +77,17 @@
       <button onclick="registerUser()" class="w-full bg-amber-700 text-white p-2 rounded-lg mb-4">
         Register
       </button>
-
-      <button id="changePasswordBtn" onclick="showChangePassword()" class="hidden w-full bg-yellow-600 text-white p-2 rounded-lg mb-4">
-        Change Password
-      </button>
     </div>
+
+    <!-- Always Visible Change Password Button -->
+    <button id="changePasswordBtn" onclick="showChangePassword()" class="w-full bg-yellow-600 text-white p-2 rounded-lg mb-4">
+      Change Password
+    </button>
 
     <!-- Change Password Section -->
     <div id="changePasswordSection">
       <h2 class="text-lg font-semibold mb-2 text-center">Change Password</h2>
+      <input id="changeEmail" type="email" class="w-full border rounded p-2 mb-2" placeholder="Registered Email" />
       <input id="currentPassword" type="password" class="w-full border rounded p-2 mb-2" placeholder="Current Password" />
       <input id="newPassword" type="password" class="w-full border rounded p-2 mb-3" placeholder="New Password" />
       <button onclick="updatePassword()" class="w-full bg-green-700 text-white p-2 rounded-lg mb-3">Save New Password</button>
@@ -107,11 +109,8 @@
 
   <script>
     const db = firebase.database();
-
     const staffMasterDiv = document.getElementById('staffMasterDiv');
-    const changePasswordBtn = document.getElementById('changePasswordBtn');
     const changePasswordSection = document.getElementById('changePasswordSection');
-    let lastRegisteredBuyerKey = "";
 
     document.getElementById('userType').addEventListener('change', function() {
       if (this.value === 'staff') staffMasterDiv.classList.remove('hidden');
@@ -149,13 +148,6 @@
       })
       .then(() => {
         alert(role === "staff" ? "✅ Staff registered successfully!" : "✅ Member registered successfully!");
-        
-        if (role === "buyer") {
-          lastRegisteredBuyerKey = userKey;
-          changePasswordBtn.classList.remove("hidden");
-        }
-
-        document.getElementById("userType").value = "";
         document.getElementById("regName").value = "";
         document.getElementById("regPhone").value = "";
         document.getElementById("regEmail").value = "";
@@ -166,44 +158,48 @@
       .catch(err => alert("Error: " + err.message));
     }
 
-    // === Show Change Password Section ===
+    // === Show/Hide Change Password ===
     function showChangePassword() {
       document.getElementById("registerSection").style.display = "none";
+      document.getElementById("loginSection").style.display = "none";
       changePasswordSection.style.display = "block";
     }
 
-    // === Cancel Change Password ===
     function cancelChangePassword() {
       changePasswordSection.style.display = "none";
       document.getElementById("registerSection").style.display = "block";
+      document.getElementById("loginSection").style.display = "block";
     }
 
-    // === Update Password in Firebase ===
+    // === Update Password Logic ===
     function updatePassword() {
+      const email = document.getElementById("changeEmail").value.trim();
       const currentPass = document.getElementById("currentPassword").value.trim();
       const newPass = document.getElementById("newPassword").value.trim();
 
-      if (!currentPass || !newPass) {
-        alert("Please fill all password fields.");
+      if (!email || !currentPass || !newPass) {
+        alert("Please fill all fields.");
         return;
       }
 
-      if (!lastRegisteredBuyerKey) {
-        alert("No buyer record found to update.");
-        return;
-      }
-
-      const ref = db.ref("buyers/" + lastRegisteredBuyerKey);
+      const userKey = email.replace(/[.@]/g, "_");
+      const ref = db.ref("buyers/" + userKey);
 
       ref.once("value").then(snapshot => {
         const data = snapshot.val();
+        if (!data) {
+          alert("❌ Account not found.");
+          return;
+        }
+
         if (data.password !== currentPass) {
-          alert("❌ Current password is incorrect.");
+          alert("❌ Current password incorrect.");
           return;
         }
 
         ref.update({ password: newPass }).then(() => {
-          alert("✅ Password updated successfully!");
+          alert("✅ Password successfully updated!");
+          document.getElementById("changeEmail").value = "";
           document.getElementById("currentPassword").value = "";
           document.getElementById("newPassword").value = "";
           cancelChangePassword();
@@ -211,7 +207,7 @@
       });
     }
 
-    // === Login Logic ===
+    // === Login ===
     function loginUser() {
       const identifier = document.getElementById("loginIdentifier").value.trim();
       const password = document.getElementById("loginPassword").value.trim();
@@ -221,43 +217,32 @@
         return;
       }
 
-      const rolePaths = ["buyers", "staffs"];
+      const paths = ["buyers", "staffs"];
       let found = false;
 
-      Promise.all(
-        rolePaths.map(rolePath =>
-          db.ref(rolePath).once("value").then(snapshot => ({ rolePath, snapshot }))
-        )
-      )
+      Promise.all(paths.map(p => db.ref(p).once("value").then(s => ({ p, s }))))
       .then(results => {
-        results.forEach(({ rolePath, snapshot }) => {
-          snapshot.forEach(child => {
-            const data = child.val();
-            if ((data.email === identifier || data.phone === identifier) && data.password === password) {
+        results.forEach(({ p, s }) => {
+          s.forEach(child => {
+            const d = child.val();
+            if ((d.email === identifier || d.phone === identifier) && d.password === password) {
               found = true;
-              if (rolePath === "staffs") {
-                sessionStorage.setItem("staffName", data.name);
+              if (p === "staffs") {
+                sessionStorage.setItem("staffName", d.name);
                 sessionStorage.setItem("userRole", "staff");
-                alert("✅ Welcome, Staff " + data.name);
+                alert("✅ Welcome, Staff " + d.name);
                 window.location.href = "transaction.html";
-              } else if (rolePath === "buyers") {
-                sessionStorage.setItem("buyerName", data.name);
+              } else {
+                sessionStorage.setItem("buyerName", d.name);
                 sessionStorage.setItem("userRole", "member");
-                alert("✅ Welcome, " + data.name);
+                alert("✅ Welcome, " + d.name);
                 window.location.href = "redeem.html";
               }
             }
           });
         });
-
-        if (!found) {
-          alert("❌ Invalid credentials. Please try again.");
-        } else {
-          document.getElementById("loginIdentifier").value = "";
-          document.getElementById("loginPassword").value = "";
-        }
-      })
-      .catch(err => alert("⚠️ Login error: " + err.message));
+        if (!found) alert("❌ Invalid credentials.");
+      });
     }
   </script>
 </body>
