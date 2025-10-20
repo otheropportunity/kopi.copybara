@@ -79,7 +79,7 @@
       </button>
     </div>
 
-    <!-- Always Visible Change Password Button -->
+    <!-- Change Password Button -->
     <button id="changePasswordBtn" onclick="showChangePassword()" class="w-full bg-yellow-600 text-white p-2 rounded-lg mb-4">
       Change Password
     </button>
@@ -208,7 +208,7 @@
     }
 
     // === Login ===
-    function loginUser() {
+    async function loginUser() {
       const identifier = document.getElementById("loginIdentifier").value.trim();
       const password = document.getElementById("loginPassword").value.trim();
 
@@ -217,32 +217,32 @@
         return;
       }
 
-      const paths = ["buyers", "staffs"];
-      let found = false;
+      const dbPaths = ["buyers", "staffs"];
+      let loggedIn = false;
 
-      Promise.all(paths.map(p => db.ref(p).once("value").then(s => ({ p, s }))))
-      .then(results => {
-        results.forEach(({ p, s }) => {
-          s.forEach(child => {
-            const d = child.val();
-            if ((d.email === identifier || d.phone === identifier) && d.password === password) {
-              found = true;
-              if (p === "staffs") {
-                sessionStorage.setItem("staffName", d.name);
-                sessionStorage.setItem("userRole", "staff");
-                alert("✅ Welcome, Staff " + d.name);
-                window.location.href = "transaction.html";
-              } else {
-                sessionStorage.setItem("buyerName", d.name);
-                sessionStorage.setItem("userRole", "member");
-                alert("✅ Welcome, " + d.name);
-                window.location.href = "redeem.html";
-              }
+      for (const path of dbPaths) {
+        const snapshot = await db.ref(path).once("value");
+        snapshot.forEach(child => {
+          const data = child.val();
+          if ((data.email === identifier || data.phone === identifier) && data.password === password) {
+            loggedIn = true;
+            if (path === "staffs") {
+              sessionStorage.setItem("staffName", data.name);
+              sessionStorage.setItem("userRole", "staff");
+              alert("✅ Welcome, Staff " + data.name);
+              window.location.href = "transaction.html";
+            } else {
+              sessionStorage.setItem("buyerName", data.name);
+              sessionStorage.setItem("userRole", "member");
+              alert("✅ Welcome, " + data.name);
+              window.location.href = "redeem.html";
             }
-          });
+          }
         });
-        if (!found) alert("❌ Invalid credentials.");
-      });
+        if (loggedIn) break;
+      }
+
+      if (!loggedIn) alert("❌ Invalid email/phone or password.");
     }
   </script>
 </body>
