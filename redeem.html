@@ -11,7 +11,6 @@
     body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
     .card { background: white; border-radius: 12px; padding: 24px; max-width: 500px; margin: 50px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
 
-    /* ✅ Toast styling */
     #toast {
       position: fixed;
       bottom: 20px;
@@ -86,6 +85,7 @@
 
     <button onclick="redeemItem()" class="w-full bg-green-700 text-white p-2 rounded-lg hover:bg-green-800">🎯 Redeem</button>
     <button id="backButton" onclick="goBack()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg mt-3 hover:bg-gray-400">⬅️ Back to Transaction</button>
+    <button id="logoutButton" onclick="logout()" class="w-full bg-red-600 text-white p-2 rounded-lg mt-3 hover:bg-red-700">🚪 Logout</button>
   </div>
 
   <script>
@@ -102,7 +102,7 @@
     const db = firebase.database();
 
     let buyerId = null, buyerName = "", buyerData = {};
-    let userRole = ""; // "member" or "staff"
+    let userRole = "";
 
     const pointsTable = {
       copyaren: { glass: 10, pocket: 20, "500ml": 40, "1l": 80 },
@@ -121,10 +121,9 @@
 
     document.addEventListener("DOMContentLoaded", () => {
       const info = JSON.parse(localStorage.getItem("buyerInfo"));
-      const role = sessionStorage.getItem("role"); // store role during login: "staff" or "member"
+      const role = sessionStorage.getItem("role");
       userRole = role || "member";
 
-      // Hide Back button for members
       if (userRole === "member") document.getElementById("backButton").style.display = "none";
 
       if (!info) {
@@ -188,7 +187,6 @@
       if (!prod || !size || !useType)
         return showToast("⚠️ Please select product, size, and point type","red");
 
-      // 🔐 Password validation for redeem
       const masterPass = prompt("Enter master password:");
       if (masterPass !== "230420") return showToast("❌ Incorrect master password!","red");
 
@@ -233,6 +231,16 @@
     }
 
     function goBack() { window.location.href = "transaction.html"; }
+
+    // ✅ Logout Function
+    function logout() {
+      if (confirm("Are you sure you want to logout?")) {
+        localStorage.clear();
+        sessionStorage.clear();
+        showToast("👋 Logged out successfully!", "green");
+        setTimeout(() => window.location.href = "login.html", 1000);
+      }
+    }
   </script>
 </body>
 </html>
