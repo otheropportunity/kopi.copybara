@@ -10,7 +10,6 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
-  <!-- Firebase Config -->
   <script>
     const firebaseConfig = {
       apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
@@ -43,9 +42,7 @@
     button:hover {
       opacity: 0.85;
     }
-    #changePasswordSection {
-      display: none;
-    }
+    #changePasswordSection { display: none; }
   </style>
 </head>
 
@@ -87,7 +84,7 @@
     <!-- Change Password Section -->
     <div id="changePasswordSection">
       <h2 class="text-lg font-semibold mb-2 text-center">Change Password</h2>
-      <input id="changeEmail" type="email" class="w-full border rounded p-2 mb-2" placeholder="Registered Email" />
+      <input id="changeIdentifier" class="w-full border rounded p-2 mb-2" placeholder="Registered Email or Phone" />
       <input id="currentPassword" type="password" class="w-full border rounded p-2 mb-2" placeholder="Current Password" />
       <input id="newPassword" type="password" class="w-full border rounded p-2 mb-3" placeholder="New Password" />
       <button onclick="updatePassword()" class="w-full bg-green-700 text-white p-2 rounded-lg mb-3">Save New Password</button>
@@ -117,7 +114,7 @@
       else staffMasterDiv.classList.add('hidden');
     });
 
-    // === Register New User ===
+    // === Register User ===
     function registerUser() {
       const role = document.getElementById("userType").value;
       const name = document.getElementById("regName").value.trim();
@@ -125,17 +122,11 @@
       const email = document.getElementById("regEmail").value.trim();
       const password = document.getElementById("regPassword").value.trim();
 
-      if (!role || !name || !phone || !email || !password) {
-        alert("Please fill all fields.");
-        return;
-      }
+      if (!role || !name || !phone || !email || !password) return alert("Please fill all fields.");
 
       if (role === "staff") {
         const master = document.getElementById("staffMasterPassword").value.trim();
-        if (master !== "230420") {
-          alert("Invalid master password for staff registration!");
-          return;
-        }
+        if (master !== "230420") return alert("Invalid master password for staff registration!");
       }
 
       const userKey = email.replace(/[.@]/g, "_");
@@ -145,98 +136,74 @@
         name, phone, email, password, role,
         points: role === "buyer" ? 0 : null,
         createdAt: new Date().toISOString()
-      })
-      .then(() => {
-        alert(role === "staff" ? "✅ Staff registered successfully!" : "✅ Member registered successfully!");
-        document.getElementById("regName").value = "";
-        document.getElementById("regPhone").value = "";
-        document.getElementById("regEmail").value = "";
-        document.getElementById("regPassword").value = "";
-        document.getElementById("staffMasterPassword").value = "";
+      }).then(() => {
+        alert(`✅ ${role === "staff" ? "Staff" : "Member"} registered successfully!`);
+        ["regName","regPhone","regEmail","regPassword","staffMasterPassword"].forEach(id => document.getElementById(id).value="");
         staffMasterDiv.classList.add('hidden');
-      })
-      .catch(err => alert("Error: " + err.message));
+      });
     }
 
-    // === Show/Hide Change Password ===
+    // === Change Password UI ===
     function showChangePassword() {
       document.getElementById("registerSection").style.display = "none";
       document.getElementById("loginSection").style.display = "none";
       changePasswordSection.style.display = "block";
     }
-
     function cancelChangePassword() {
       changePasswordSection.style.display = "none";
       document.getElementById("registerSection").style.display = "block";
       document.getElementById("loginSection").style.display = "block";
     }
 
-    // === Update Password Logic ===
-    function updatePassword() {
-      const email = document.getElementById("changeEmail").value.trim();
+    // === Update Password ===
+    async function updatePassword() {
+      const identifier = document.getElementById("changeIdentifier").value.trim();
       const currentPass = document.getElementById("currentPassword").value.trim();
       const newPass = document.getElementById("newPassword").value.trim();
+      if (!identifier || !currentPass || !newPass) return alert("Please fill all fields.");
 
-      if (!email || !currentPass || !newPass) {
-        alert("Please fill all fields.");
-        return;
+      const roles = ["buyers", "staffs"];
+      let updated = false;
+
+      for (const path of roles) {
+        const snapshot = await db.ref(path).once("value");
+        snapshot.forEach(child => {
+          const data = child.val();
+          if ((data.email === identifier || data.phone === identifier) && data.password === currentPass) {
+            db.ref(path + "/" + child.key).update({ password: newPass });
+            updated = true;
+            alert("✅ Password updated successfully!");
+          }
+        });
+        if (updated) break;
       }
 
-      const userKey = email.replace(/[.@]/g, "_");
-      const ref = db.ref("buyers/" + userKey);
-
-      ref.once("value").then(snapshot => {
-        const data = snapshot.val();
-        if (!data) {
-          alert("❌ Account not found.");
-          return;
-        }
-
-        if (data.password !== currentPass) {
-          alert("❌ Current password incorrect.");
-          return;
-        }
-
-        ref.update({ password: newPass }).then(() => {
-          alert("✅ Password successfully updated!");
-          document.getElementById("changeEmail").value = "";
-          document.getElementById("currentPassword").value = "";
-          document.getElementById("newPassword").value = "";
-          cancelChangePassword();
-        });
-      });
+      if (!updated) alert("❌ Account not found or current password incorrect.");
+      cancelChangePassword();
     }
 
     // === Login ===
     async function loginUser() {
       const identifier = document.getElementById("loginIdentifier").value.trim();
       const password = document.getElementById("loginPassword").value.trim();
+      if (!identifier || !password) return alert("Please fill all fields.");
 
-      if (!identifier || !password) {
-        alert("Please fill all login fields.");
-        return;
-      }
-
-      const dbPaths = ["buyers", "staffs"];
+      const roles = ["buyers", "staffs"];
       let loggedIn = false;
 
-      for (const path of dbPaths) {
+      for (const path of roles) {
         const snapshot = await db.ref(path).once("value");
         snapshot.forEach(child => {
           const data = child.val();
           if ((data.email === identifier || data.phone === identifier) && data.password === password) {
             loggedIn = true;
-            if (path === "staffs") {
-              sessionStorage.setItem("staffName", data.name);
-              sessionStorage.setItem("userRole", "staff");
-              alert("✅ Welcome, Staff " + data.name);
-              window.location.href = "transaction.html";
-            } else {
-              sessionStorage.setItem("buyerName", data.name);
-              sessionStorage.setItem("userRole", "member");
-              alert("✅ Welcome, " + data.name);
-              window.location.href = "redeem.html";
-            }
+            sessionStorage.setItem("userName", data.name);
+            sessionStorage.setItem("userRole", data.role);
+            sessionStorage.setItem("userEmail", data.email);
+            sessionStorage.setItem("userPhone", data.phone);
+
+            alert(`✅ Welcome, ${data.role === 'staff' ? 'Staff ' : ''}${data.name}`);
+            window.location.href = data.role === "staff" ? "transaction.html" : "redeem.html";
           }
         });
         if (loggedIn) break;
