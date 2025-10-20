@@ -3,173 +3,228 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Coffee Loyalty - Transaction & Redeem History</title>
+  <title>Coffee Loyalty - Transaction & Redemption History</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
+    .card { background: white; border-radius: 12px; padding: 24px; max-width: 1200px; margin: 40px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; }
+    th { cursor: pointer; }
+    .redeem-row { background-color: #d1fae5; font-style: italic; } /* Light green + italic */
+  </style>
 </head>
-<body class="bg-amber-50 min-h-screen flex flex-col items-center p-6">
 
-  <h1 class="text-3xl font-bold text-amber-800 mb-4">☕ Coffee Loyalty History</h1>
+<body>
+<div class="card">
+  <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">
+    ☕ Transaction & Redemption History
+  </h1>
 
-  <div class="w-full max-w-5xl bg-white shadow-md rounded-2xl p-4 mb-4">
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-      <div>
-        <span class="text-sm text-gray-600">Logged in as:</span>
-        <span id="staffName" class="font-semibold text-amber-700"></span>
-      </div>
+  <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+    <button onclick="window.location.href='transaction.html'" class="bg-amber-700 text-white p-2 px-4 rounded-lg hover:bg-amber-800 transition">
+      ⬅ Back
+    </button>
 
-      <div class="flex gap-2">
-        <input
-          type="text"
-          id="searchInput"
-          placeholder="Search buyer..."
-          class="border border-gray-300 rounded-lg px-3 py-1 w-48 focus:outline-none focus:ring-2 focus:ring-amber-500"
-        />
-        <select id="sortOption" class="border border-gray-300 rounded-lg px-3 py-1 focus:outline-none focus:ring-2 focus:ring-amber-500">
-          <option value="date">Sort by Date</option>
-          <option value="name">Sort by Name</option>
-        </select>
-        <button
-          onclick="exportToExcel()"
-          class="bg-green-600 hover:bg-green-700 text-white px-4 py-1 rounded-lg"
-        >
-          Export Excel
-        </button>
-      </div>
+    <div class="flex items-center gap-4 flex-wrap">
+      <span id="totalPointsDisplay" class="font-bold text-amber-800 text-lg">Loading points...</span>
+
+      <input id="searchInput" type="text" placeholder="🔍 Search buyer name..."
+        class="border border-amber-400 rounded-lg p-2 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-amber-500"/>
+
+      <button id="sortButton" class="bg-amber-600 text-white p-2 px-4 rounded-lg hover:bg-amber-700 transition">
+        🔤 Sort by Name
+      </button>
+
+      <button id="downloadExcel" class="bg-green-600 text-white p-2 px-4 rounded-lg hover:bg-green-700 transition">
+        ⬇️ Download Excel
+      </button>
+
+      <span id="staffNameDisplay" class="font-semibold text-amber-700"></span>
     </div>
   </div>
 
-  <div class="w-full max-w-5xl bg-white shadow-lg rounded-2xl p-4 overflow-x-auto">
-    <table class="w-full border-collapse">
-      <thead class="bg-amber-600 text-white">
+  <div class="overflow-x-auto">
+    <table id="historyTable" class="min-w-full bg-white rounded-lg text-sm">
+      <thead class="bg-amber-700 text-white">
         <tr>
-          <th class="py-2 px-3 text-left">Buyer</th>
-          <th class="py-2 px-3 text-left">Product</th>
-          <th class="py-2 px-3 text-left">Size</th>
-          <th class="py-2 px-3 text-left">Points Used / Earned</th>
-          <th class="py-2 px-3 text-left">Staff</th>
-          <th class="py-2 px-3 text-left">Type</th>
-          <th class="py-2 px-3 text-left">Timestamp</th>
+          <th>Date/Time</th>
+          <th>Buyer Name</th>
+          <th>Items (Qty & Size)</th>
+          <th>Total (Rp)</th>
+          <th>Payment</th>
+          <th>Paid (Rp)</th>
+          <th>Change (Rp)</th>
+          <th>Points Earned</th>
+          <th>Redeemed (pts)</th>
+          <th>Remaining Points</th>
+          <th>Staff</th>
         </tr>
       </thead>
-      <tbody id="historyTable" class="divide-y divide-gray-200"></tbody>
+      <tbody id="historyBody"></tbody>
     </table>
   </div>
+</div>
 
-  <script>
-    // === Firebase Config ===
-    const firebaseConfig = {
-      apiKey: "AIzaSyD8gZ_fKEbT4PDXqJFe2BG2ps-Nw-sWNQI",
-      authDomain: "kopi-copybara.firebaseapp.com",
-      databaseURL: "https://kopi-copybara-default-rtdb.firebaseio.com/",
-      projectId: "kopi-copybara",
-      storageBucket: "kopi-copybara.appspot.com",
-      messagingSenderId: "1051151399321",
-      appId: "1:1051151399321:web:4dc153d2a2896ff7758e2a"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
+  authDomain: "kopi-copybara.firebaseapp.com",
+  databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "kopi-copybara",
+  storageBucket: "kopi-copybara.appspot.com",
+  messagingSenderId: "729875984861",
+  appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-    const staffDisplay = document.getElementById("staffName");
-    const historyTable = document.getElementById("historyTable");
-    const searchInput = document.getElementById("searchInput");
-    const sortOption = document.getElementById("sortOption");
+let historyRows = [];
+let filteredRows = [];
+let sortByName = false;
 
-    let combinedData = [];
+document.addEventListener("DOMContentLoaded", async () => {
+  const staffName = sessionStorage.getItem("staffName");
+  if (!staffName || staffName === "null") {
+    alert("Session expired or not logged in. Please login again.");
+    window.location.href = "index.html";
+    return;
+  }
+  document.getElementById("staffNameDisplay").textContent = "Logged in as: " + staffName;
 
-    // === Load Staff Name ===
-    const staffName = sessionStorage.getItem("staffName") || "Unknown";
-    staffDisplay.textContent = staffName;
+  await loadHistory();
 
-    // === Fetch Transactions & Redeem History ===
-    async function loadData() {
-      const [txSnap, redeemSnap] = await Promise.all([
-        db.ref("transactions").once("value"),
-        db.ref("redeemHistory").once("value")
-      ]);
+  document.getElementById("sortButton").addEventListener("click", () => {
+    sortByName = !sortByName;
+    renderHistory();
+    document.getElementById("sortButton").textContent = sortByName ? "📅 Sort by Date" : "🔤 Sort by Name";
+  });
 
-      combinedData = [];
+  document.getElementById("downloadExcel").addEventListener("click", downloadFilteredExcel);
+  document.getElementById("searchInput").addEventListener("input", (e) => {
+    const keyword = e.target.value.toLowerCase();
+    filteredRows = historyRows.filter(r => (r.buyerName || "").toLowerCase().includes(keyword));
+    renderHistory();
+  });
+});
 
-      // --- Transactions ---
-      txSnap.forEach(child => {
-        const val = child.val();
-        combinedData.push({
-          buyer: val.buyer || "",
-          product: val.product || "",
-          size: val.size || "",
-          points: val.pointsEarned || 0,
-          staff: val.staff || "",
-          type: "Purchase",
-          timestamp: val.timestamp || ""
-        });
-      });
+async function loadHistory() {
+  const table = document.getElementById("historyBody");
+  table.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">Loading...</td></tr>`;
 
-      // --- Redeem History ---
-      redeemSnap.forEach(child => {
-        const val = child.val();
-        combinedData.push({
-          buyer: val.buyer || "",
-          product: val.product || "",
-          size: val.size || "",
-          points: val.pointsUsed || 0,
-          staff: val.staff || "",
-          type: val.usedType || "Redeem",
-          timestamp: val.timestamp || ""
-        });
-      });
+  const [transactionsSnap, redeemSnap] = await Promise.all([
+    db.ref("transactions").once("value"),
+    db.ref("redeemHistory").once("value")
+  ]);
 
-      renderTable();
-    }
+  let rawRows = [];
 
-    // === Render Table ===
-    function renderTable() {
-      const keyword = searchInput.value.toLowerCase();
-      const sortBy = sortOption.value;
-      let filtered = combinedData.filter(item =>
-        item.buyer.toLowerCase().includes(keyword)
-      );
+  // 🟢 Transactions
+  transactionsSnap.forEach(child => {
+    const t = child.val();
+    if (!t || !t.buyerName) return;
+    rawRows.push({
+      dateTime: t.dateTime || "-",
+      buyerName: t.buyerName,
+      items: t.items || "-",
+      totalAmount: t.totalAmount || 0,
+      paymentType: t.paymentType || "-",
+      paidAmount: t.paidAmount || 0,
+      changeAmount: t.changeAmount || 0,
+      pointsEarned: t.totalPointEarned || 0,
+      redeemed: 0,
+      remainingPoints: t.UpdateMasterPoints || 0,
+      staff: t.staff || "-",
+      isRedeem: false
+    });
+  });
 
-      if (sortBy === "date") {
-        filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-      } else {
-        filtered.sort((a, b) => a.buyer.localeCompare(b.buyer));
-      }
+  // 🔸 Redeem History
+  redeemSnap.forEach(child => {
+    const r = child.val();
+    if (!r || !r.buyer) return;
+    const desc = `${r.product || '-'} ${r.size || '-'} (${r.usedType || '-'})`;
+    rawRows.push({
+      dateTime: r.timestamp ? new Date(r.timestamp).toLocaleString() : "-",
+      buyerName: r.buyer,
+      items: desc,
+      totalAmount: "-",
+      paymentType: "REDEEM",
+      paidAmount: "-",
+      changeAmount: "-",
+      pointsEarned: 0,
+      redeemed: r.pointsUsed || 0,
+      remainingPoints: "-",
+      staff: r.staff || "-",
+      isRedeem: true
+    });
+  });
 
-      historyTable.innerHTML = filtered
-        .map(
-          (row) => `
-          <tr class="hover:bg-amber-50">
-            <td class="py-2 px-3">${row.buyer}</td>
-            <td class="py-2 px-3">${row.product}</td>
-            <td class="py-2 px-3">${row.size}</td>
-            <td class="py-2 px-3 text-center">${row.points}</td>
-            <td class="py-2 px-3">${row.staff}</td>
-            <td class="py-2 px-3 font-semibold ${row.type === "Purchase" ? "text-green-600" : "text-red-600"}">${row.type}</td>
-            <td class="py-2 px-3 text-sm text-gray-600">${row.timestamp}</td>
-          </tr>
-        `
-        )
-        .join("");
-    }
+  historyRows = rawRows.sort((a,b) => new Date(b.dateTime) - new Date(a.dateTime));
+  filteredRows = [...historyRows];
+  document.getElementById("totalPointsDisplay").textContent = "⭐ History Loaded ("+historyRows.length+" entries)";
+  renderHistory();
+}
 
-    // === Excel Export ===
-    function exportToExcel() {
-      const keyword = searchInput.value.toLowerCase();
-      const filtered = combinedData.filter(item =>
-        item.buyer.toLowerCase().includes(keyword)
-      );
-      const ws = XLSX.utils.json_to_sheet(filtered);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "History");
-      XLSX.writeFile(wb, "CoffeeLoyalty_History.xlsx");
-    }
+function renderHistory() {
+  const table = document.getElementById("historyBody");
+  const rows = filteredRows.length ? filteredRows : historyRows;
 
-    searchInput.addEventListener("input", renderTable);
-    sortOption.addEventListener("change", renderTable);
+  if (rows.length === 0) {
+    table.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">No data found.</td></tr>`;
+    return;
+  }
 
-    loadData();
-  </script>
+  const sorted = sortByName ? [...rows].sort((a,b)=>(a.buyerName||"").localeCompare(b.buyerName||"")) : rows;
+
+  table.innerHTML = sorted.map(r => `
+    <tr class="hover:bg-amber-50 ${r.isRedeem ? 'redeem-row' : ''}">
+      <td>${r.dateTime}</td>
+      <td>${r.buyerName}</td>
+      <td>${r.items}</td>
+      <td>${r.totalAmount!=="-"?"Rp "+Number(r.totalAmount).toLocaleString():"-"}</td>
+      <td>${r.paymentType}</td>
+      <td>${r.paidAmount!=="-"?"Rp "+Number(r.paidAmount).toLocaleString():"-"}</td>
+      <td>${r.changeAmount!=="-"?"Rp "+Number(r.changeAmount).toLocaleString():"-"}</td>
+      <td>${r.pointsEarned||"-"}</td>
+      <td>${r.redeemed?r.redeemed+" pts":"-"}</td>
+      <td class="font-semibold text-amber-700">${r.remainingPoints}</td>
+      <td>${r.staff}</td>
+    </tr>
+  `).join("");
+}
+
+// ✅ Download only visible (filtered) rows
+function downloadFilteredExcel() {
+  const exportRows = filteredRows.length ? filteredRows : historyRows;
+  if (exportRows.length === 0) {
+    alert("No data to export!");
+    return;
+  }
+
+  const wsData = [
+    ["Date/Time","Buyer Name","Items","Total (Rp)","Payment","Paid (Rp)","Change (Rp)","Points Earned","Redeemed (pts)","Remaining Points","Staff"],
+    ...exportRows.map(r => [
+      r.dateTime, r.buyerName, r.items,
+      r.totalAmount === "-" ? "" : r.totalAmount,
+      r.paymentType,
+      r.paidAmount === "-" ? "" : r.paidAmount,
+      r.changeAmount === "-" ? "" : r.changeAmount,
+      r.pointsEarned || "",
+      r.redeemed || "",
+      r.remainingPoints,
+      r.staff
+    ])
+  ];
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  XLSX.utils.book_append_sheet(wb, ws, "Filtered History");
+  const now = new Date();
+  XLSX.writeFile(wb, `Coffee_History_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}.xlsx`);
+}
+</script>
 </body>
 </html>
