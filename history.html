@@ -13,7 +13,8 @@
     .card { background: white; border-radius: 12px; padding: 24px; max-width: 1200px; margin: 40px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
     th, td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; }
     th { cursor: pointer; }
-    .redeem-row { background-color: #d1fae5; font-style: italic; } /* Light green + italic */
+    .redeem-row { background-color: #d1fae5; font-style: italic; }
+    #loadingSpinner { text-align: center; padding: 40px; color: #b45309; font-weight: bold; }
   </style>
 </head>
 
@@ -46,7 +47,9 @@
     </div>
   </div>
 
-  <div class="overflow-x-auto">
+  <div id="loadingSpinner">⏳ Loading data, please wait...</div>
+
+  <div class="overflow-x-auto hidden" id="tableContainer">
     <table id="historyTable" class="min-w-full bg-white rounded-lg text-sm">
       <thead class="bg-amber-700 text-white">
         <tr>
@@ -85,14 +88,24 @@ let historyRows = [];
 let filteredRows = [];
 let sortByName = false;
 
+// 🧩 Global error handler (so white screen won't appear)
+window.addEventListener("error", (e) => {
+  document.body.innerHTML = `
+    <div style="padding:20px;color:red;font-weight:bold;">
+      ⚠️ Script Error: ${e.message}<br>${e.filename}:${e.lineno}
+    </div>`;
+});
+
+// 🟢 Main logic
 document.addEventListener("DOMContentLoaded", async () => {
   const staffName = sessionStorage.getItem("staffName");
+
+  // Allow running even if no session (for debugging)
   if (!staffName || staffName === "null") {
-    alert("Session expired or not logged in. Please login again.");
-    window.location.href = "index.html";
-    return;
+    console.warn("⚠ No staffName found — running without redirect for debug.");
+  } else {
+    document.getElementById("staffNameDisplay").textContent = "Logged in as: " + staffName;
   }
-  document.getElementById("staffNameDisplay").textContent = "Logged in as: " + staffName;
 
   await loadHistory();
 
@@ -111,61 +124,75 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function loadHistory() {
+  const spinner = document.getElementById("loadingSpinner");
+  const tableContainer = document.getElementById("tableContainer");
   const table = document.getElementById("historyBody");
-  table.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">Loading...</td></tr>`;
+  spinner.classList.remove("hidden");
+  tableContainer.classList.add("hidden");
 
-  const [transactionsSnap, redeemSnap] = await Promise.all([
-    db.ref("transactions").once("value"),
-    db.ref("redeemHistory").once("value")
-  ]);
+  try {
+    const [transactionsSnap, redeemSnap] = await Promise.all([
+      db.ref("transactions").once("value"),
+      db.ref("redeemHistory").once("value")
+    ]);
 
-  let rawRows = [];
+    let rawRows = [];
 
-  // 🟢 Transactions
-  transactionsSnap.forEach(child => {
-    const t = child.val();
-    if (!t || !t.buyerName) return;
-    rawRows.push({
-      dateTime: t.dateTime || "-",
-      buyerName: t.buyerName,
-      items: t.items || "-",
-      totalAmount: t.totalAmount || 0,
-      paymentType: t.paymentType || "-",
-      paidAmount: t.paidAmount || 0,
-      changeAmount: t.changeAmount || 0,
-      pointsEarned: t.totalPointEarned || 0,
-      redeemed: 0,
-      remainingPoints: t.UpdateMasterPoints || 0,
-      staff: t.staff || "-",
-      isRedeem: false
+    // 🟢 Transactions
+    transactionsSnap.forEach(child => {
+      const t = child.val();
+      if (!t || !t.buyerName) return;
+      rawRows.push({
+        dateTime: t.dateTime || "-",
+        buyerName: t.buyerName,
+        items: t.items || "-",
+        totalAmount: t.totalAmount || 0,
+        paymentType: t.paymentType || "-",
+        paidAmount: t.paidAmount || 0,
+        changeAmount: t.changeAmount || 0,
+        pointsEarned: t.totalPointEarned || 0,
+        redeemed: 0,
+        remainingPoints: t.UpdateMasterPoints ?? "-",
+        staff: t.staff || "-",
+        isRedeem: false
+      });
     });
-  });
 
-  // 🔸 Redeem History
-  redeemSnap.forEach(child => {
-    const r = child.val();
-    if (!r || !r.buyer) return;
-    const desc = `${r.product || '-'} ${r.size || '-'} (${r.usedType || '-'})`;
-    rawRows.push({
-      dateTime: r.timestamp ? new Date(r.timestamp).toLocaleString() : "-",
-      buyerName: r.buyer,
-      items: desc,
-      totalAmount: "-",
-      paymentType: "REDEEM",
-      paidAmount: "-",
-      changeAmount: "-",
-      pointsEarned: 0,
-      redeemed: r.pointsUsed || 0,
-      remainingPoints: "-",
-      staff: r.staff || "-",
-      isRedeem: true
+    // 🔸 Redeem History
+    redeemSnap.forEach(child => {
+      const r = child.val();
+      if (!r || !r.buyer) return;
+      const desc = `${r.product || '-'} ${r.size || '-'} (${r.usedType || '-'})`;
+      rawRows.push({
+        dateTime: r.timestamp ? new Date(r.timestamp).toLocaleString() : "-",
+        buyerName: r.buyer,
+        items: desc,
+        totalAmount: "-",
+        paymentType: "REDEEM",
+        paidAmount: "-",
+        changeAmount: "-",
+        pointsEarned: 0,
+        redeemed: r.pointsUsed || 0,
+        remainingPoints: "-",
+        staff: r.staff || "-",
+        isRedeem: true
+      });
     });
-  });
 
-  historyRows = rawRows.sort((a,b) => new Date(b.dateTime) - new Date(a.dateTime));
-  filteredRows = [...historyRows];
-  document.getElementById("totalPointsDisplay").textContent = "⭐ History Loaded ("+historyRows.length+" entries)";
-  renderHistory();
+    historyRows = rawRows.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
+    filteredRows = [...historyRows];
+
+    spinner.classList.add("hidden");
+    tableContainer.classList.remove("hidden");
+
+    document.getElementById("totalPointsDisplay").textContent =
+      `⭐ History Loaded (${historyRows.length} entries)`;
+
+    renderHistory();
+  } catch (error) {
+    console.error("Firebase load error:", error);
+    spinner.innerHTML = `❌ Error loading data: ${error.message}`;
+  }
 }
 
 function renderHistory() {
@@ -177,26 +204,28 @@ function renderHistory() {
     return;
   }
 
-  const sorted = sortByName ? [...rows].sort((a,b)=>(a.buyerName||"").localeCompare(b.buyerName||"")) : rows;
+  const sorted = sortByName ? [...rows].sort((a, b) =>
+    (a.buyerName || "").localeCompare(b.buyerName || "")
+  ) : rows;
 
   table.innerHTML = sorted.map(r => `
     <tr class="hover:bg-amber-50 ${r.isRedeem ? 'redeem-row' : ''}">
       <td>${r.dateTime}</td>
       <td>${r.buyerName}</td>
       <td>${r.items}</td>
-      <td>${r.totalAmount!=="-"?"Rp "+Number(r.totalAmount).toLocaleString():"-"}</td>
+      <td>${r.totalAmount !== "-" ? "Rp " + Number(r.totalAmount).toLocaleString() : "-"}</td>
       <td>${r.paymentType}</td>
-      <td>${r.paidAmount!=="-"?"Rp "+Number(r.paidAmount).toLocaleString():"-"}</td>
-      <td>${r.changeAmount!=="-"?"Rp "+Number(r.changeAmount).toLocaleString():"-"}</td>
-      <td>${r.pointsEarned||"-"}</td>
-      <td>${r.redeemed?r.redeemed+" pts":"-"}</td>
+      <td>${r.paidAmount !== "-" ? "Rp " + Number(r.paidAmount).toLocaleString() : "-"}</td>
+      <td>${r.changeAmount !== "-" ? "Rp " + Number(r.changeAmount).toLocaleString() : "-"}</td>
+      <td>${r.pointsEarned || "-"}</td>
+      <td>${r.redeemed ? r.redeemed + " pts" : "-"}</td>
       <td class="font-semibold text-amber-700">${r.remainingPoints}</td>
       <td>${r.staff}</td>
     </tr>
   `).join("");
 }
 
-// ✅ Download only visible (filtered) rows
+// ✅ Download filtered (visible) data only
 function downloadFilteredExcel() {
   const exportRows = filteredRows.length ? filteredRows : historyRows;
   if (exportRows.length === 0) {
@@ -222,6 +251,7 @@ function downloadFilteredExcel() {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   XLSX.utils.book_append_sheet(wb, ws, "Filtered History");
+
   const now = new Date();
   XLSX.writeFile(wb, `Coffee_History_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}.xlsx`);
 }
