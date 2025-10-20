@@ -16,7 +16,7 @@
       position: fixed;
       bottom: 20px;
       right: 20px;
-      background-color: #16a34a; /* default green */
+      background-color: #16a34a;
       color: white;
       padding: 12px 22px;
       border-radius: 8px;
@@ -28,15 +28,11 @@
       z-index: 9999;
       cursor: pointer;
     }
-    #toast.show {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    #toast.show { opacity: 1; transform: translateY(0); }
   </style>
 </head>
 <body>
 
-  <!-- ✅ Toast -->
   <div id="toast" onclick="hideToast()"></div>
 
   <div class="card">
@@ -45,7 +41,7 @@
       Buyer: <span id="buyerName" class="font-bold text-amber-900">-</span>
     </h2>
 
-    <!-- ✅ Buyer Summary -->
+    <!-- Buyer Summary -->
     <div id="buyerSummary" class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
       <h3 class="font-semibold text-amber-800 text-center mb-2">☕ Points Summary</h3>
       <div class="grid grid-cols-2 gap-1 text-sm text-center">
@@ -57,7 +53,7 @@
       <p class="text-center mt-2 font-bold">Total: <span id="totalPoints">0</span> pts</p>
     </div>
 
-    <!-- ✅ Redeem Options -->
+    <!-- Redeem Options -->
     <div class="mb-4">
       <label class="block font-semibold text-amber-700 mb-2">Select Item to Redeem:</label>
       <select id="productSelect" class="w-full border p-2 rounded mb-2">
@@ -89,7 +85,7 @@
     </div>
 
     <button onclick="redeemItem()" class="w-full bg-green-700 text-white p-2 rounded-lg hover:bg-green-800">🎯 Redeem</button>
-    <button onclick="goBack()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg mt-3 hover:bg-gray-400">⬅️ Back to Transaction</button>
+    <button id="backButton" onclick="goBack()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg mt-3 hover:bg-gray-400">⬅️ Back to Transaction</button>
   </div>
 
   <script>
@@ -106,6 +102,7 @@
     const db = firebase.database();
 
     let buyerId = null, buyerName = "", buyerData = {};
+    let userRole = ""; // "member" or "staff"
 
     const pointsTable = {
       copyaren: { glass: 10, pocket: 20, "500ml": 40, "1l": 80 },
@@ -113,7 +110,6 @@
       camericano: { glass: 8, pocket: 15, "500ml": 30, "1l": 60 }
     };
 
-    // ✅ Toast system (persistent until click)
     function showToast(msg, color="green") {
       const toast = document.getElementById("toast");
       toast.textContent = msg;
@@ -121,14 +117,21 @@
       toast.style.backgroundColor = colors[color] || "#16a34a";
       toast.classList.add("show");
     }
-    function hideToast() {
-      const toast = document.getElementById("toast");
-      toast.classList.remove("show");
-    }
+    function hideToast() { document.getElementById("toast").classList.remove("show"); }
 
     document.addEventListener("DOMContentLoaded", () => {
       const info = JSON.parse(localStorage.getItem("buyerInfo"));
-      if (!info) { showToast("⚠️ No buyer selected!","red"); setTimeout(()=>window.location.href="transaction.html",1500); return; }
+      const role = sessionStorage.getItem("role"); // store role during login: "staff" or "member"
+      userRole = role || "member";
+
+      // Hide Back button for members
+      if (userRole === "member") document.getElementById("backButton").style.display = "none";
+
+      if (!info) {
+        showToast("⚠️ No buyer selected!","red");
+        setTimeout(()=>window.location.href="transaction.html",1500);
+        return;
+      }
       buyerId = info.id;
       buyerName = info.name;
       document.getElementById("buyerName").textContent = buyerName;
@@ -182,7 +185,15 @@
       const prod = document.getElementById("productSelect").value;
       const size = document.getElementById("sizeSelect").value;
       const useType = document.getElementById("usePointSelect").value;
-      if (!prod || !size || !useType) return showToast("⚠️ Please select product, size, and point type","red");
+      if (!prod || !size || !useType)
+        return showToast("⚠️ Please select product, size, and point type","red");
+
+      // 🔐 Password validation for redeem
+      const masterPass = prompt("Enter master password:");
+      if (masterPass !== "230420") return showToast("❌ Incorrect master password!","red");
+
+      const memberPass = prompt(`Enter password for ${buyerName}:`);
+      if (memberPass !== buyerData.password) return showToast("❌ Incorrect member password!","red");
 
       const cost = pointsTable[prod][size];
       const totalPts = buyerData.masterPoints || 0;
@@ -194,23 +205,20 @@
 
       if (!confirm(`Redeem 1 ${prod} (${size}) using ${useType.toUpperCase()} points for ${cost}?`)) return;
 
-      let update = {};
+      const update = {};
       update[`summary${useType.charAt(0).toUpperCase() + useType.slice(1)}`] = currentPts - cost;
       update.masterPoints = totalPts - cost;
 
       db.ref("buyers/" + buyerId).update(update).then(() => {
         buyerData = { ...buyerData, ...update };
         updateSummaryDisplay();
+        showToast(`✅ Redeemed 1 ${prod} (${size}) successfully!`,"green");
 
-        showToast(`✅ Redeemed 1 ${prod} (${size}) using ${useType.toUpperCase()} points!`,"green");
-
-        // Reset selects after success
         document.getElementById("productSelect").value = "";
         document.getElementById("sizeSelect").value = "";
         document.getElementById("usePointSelect").value = "";
         document.getElementById("costDisplay").textContent = "";
 
-        // Log redemption
         const redeemHistory = {
           buyer: buyerName,
           product: prod,
