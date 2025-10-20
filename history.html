@@ -13,10 +13,9 @@
     .card { background: white; border-radius: 12px; padding: 24px; max-width: 1200px; margin: 40px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
     th, td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; }
     th { cursor: pointer; }
-    .redeem-row { background-color: #d1fae5; font-style: italic; } /* Light green + italic */
+    .redeem-row { background-color: #d1fae5; font-style: italic; }
   </style>
 </head>
-
 <body>
 <div class="card">
   <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">
@@ -42,8 +41,6 @@
       <button id="downloadExcel" class="bg-green-600 text-white p-2 px-4 rounded-lg hover:bg-green-700 transition">
         ⬇️ Download Excel
       </button>
-
-      <span id="staffNameDisplay" class="font-semibold text-amber-700"></span>
     </div>
   </div>
 
@@ -70,7 +67,6 @@
 </div>
 
 <script>
-/* ========== Firebase config ========== */
 const firebaseConfig = {
   apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
   authDomain: "kopi-copybara.firebaseapp.com",
@@ -83,297 +79,196 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-/* state */
-let historyRows = [];      // combined rows (transactions + redeems), each row has: date, buyerName, items, pointsEarned, redeemed, etc.
+let historyRows = [];
 let filteredRows = [];
 let sortByName = false;
-
-/* point rules (per item size) */
 const pointValues = { glass:1, pocket:2, "500ml":4, "1l":8 };
 
-/* helper: format Date object to MM/DD/YYYY, hh:mm:ss AM/PM in Asia/Jakarta */
 function formatJakarta(dt) {
   if (!dt || !(dt instanceof Date) || isNaN(dt)) return "-";
   return dt.toLocaleString("en-GB", {
     timeZone: "Asia/Jakarta",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true
-  }).replace(',', ','); // keep comma separator
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true
+  }).replace(',', ',');
 }
 
-/* helper: try to parse various date inputs into Date object */
 function parseToDate(raw) {
   if (!raw) return null;
-  // If already a Date
   if (raw instanceof Date) return raw;
-  // If number
   if (typeof raw === 'number') return new Date(raw);
-  // If ISO string
   const d1 = new Date(raw);
   if (!isNaN(d1)) return d1;
-  // Try replacing common formatting quirks (some transactions may store "MM/DD/YYYY, hh:mm:ss PM")
-  try {
-    // remove trailing/leading spaces
-    const s = String(raw).trim();
-    const d2 = new Date(s);
-    if (!isNaN(d2)) return d2;
-  } catch (e) {}
-  // fallback invalid
+  try { const s = String(raw).trim(); const d2 = new Date(s); if (!isNaN(d2)) return d2; } catch(e){}
   return null;
 }
 
-/* compute points earned for a transaction row:
-   prefer t.totalPointEarned if present else compute from summary fields
-*/
 function computeTransactionPoints(t) {
-  // prefer explicit field
   const explicit = Number(t.totalPointEarned);
   if (!isNaN(explicit) && explicit > 0) return explicit;
-  // otherwise compute from summary fields
   const g = Number(t.summaryGlass) || Number(t.summaryglass) || 0;
   const p = Number(t.summaryPocket) || Number(t.summarypocket) || 0;
   const m = Number(t.summary500ml) || Number(t.summary500) || 0;
   const l = Number(t.summary1L) || Number(t.summary1l) || 0;
-  const pts = (g * pointValues.glass) + (p * pointValues.pocket) + (m * pointValues["500ml"]) + (l * pointValues["1l"]);
-  return pts || 0;
+  return (g*pointValues.glass)+(p*pointValues.pocket)+(m*pointValues["500ml"])+(l*pointValues["1l"]) || 0;
 }
 
-/* Build combined history and compute running balances per buyer */
 async function loadHistory() {
   const body = document.getElementById("historyBody");
   body.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">Loading...</td></tr>`;
 
-  // fetch transactions and redeemHistory
-  const [txSnap, redeemSnap, buyersSnap] = await Promise.all([
+  const [txSnap, redeemSnap] = await Promise.all([
     db.ref("transactions").once("value"),
-    db.ref("redeemHistory").once("value"),
-    db.ref("buyers").once("value")
+    db.ref("redeemHistory").once("value")
   ]);
-
-  // collect master points per buyer (if present)
-  const masterPoints = {};
-  buyersSnap.forEach(c => {
-    const b = c.val();
-    if (b && b.name) {
-      // use common field names
-      masterPoints[b.name] = Number(b.masterPoints ?? b.masterPoint ?? b.points ?? 0) || 0;
-    }
-  });
 
   const rows = [];
 
-  // transactions
+  // Transactions
   txSnap.forEach(child => {
     const t = child.val();
     if (!t || !t.buyerName) return;
-
-    // parse transaction date; t.dateTime is often like "10/18/2025, 5:39:54 PM"
     const parsed = parseToDate(t.dateTime) || new Date();
     const ptsEarned = computeTransactionPoints(t);
 
     rows.push({
-      _source: 'transaction',
-      date: parsed,
-      dateText: formatJakarta(parsed),
-      buyerName: t.buyerName,
-      items: t.items || (() => {
-        // try to reconstruct items from summary counts
-        const parts = [];
-        if ((t.summaryGlass || t.summaryglass) > 0) parts.push(`Glass (${t.summaryGlass || t.summaryglass})`);
-        if ((t.summaryPocket || t.summarypocket) > 0) parts.push(`Pocket (${t.summaryPocket || t.summarypocket})`);
-        if ((t.summary500ml || t.summary500) > 0) parts.push(`500ml (${t.summary500ml || t.summary500})`);
-        if ((t.summary1L || t.summary1l) > 0) parts.push(`1L (${t.summary1L || t.summary1l})`);
-        return parts.join(", ") || "-";
+      _source:'transaction',
+      date:parsed,
+      dateText:formatJakarta(parsed),
+      buyerName:t.buyerName,
+      items:t.items || (()=> {
+        const parts=[];
+        if((t.summaryGlass||t.summaryglass)>0) parts.push(`Glass (${t.summaryGlass||t.summaryglass})`);
+        if((t.summaryPocket||t.summarypocket)>0) parts.push(`Pocket (${t.summaryPocket||t.summarypocket})`);
+        if((t.summary500ml||t.summary500)>0) parts.push(`500ml (${t.summary500ml||t.summary500})`);
+        if((t.summary1L||t.summary1l)>0) parts.push(`1L (${t.summary1L||t.summary1l})`);
+        return parts.join(", ")||"-";
       })(),
-      totalAmount: t.totalAmount ?? 0,
-      paymentType: t.paymentType || "-",
-      paidAmount: t.paidAmount ?? 0,
-      changeAmount: t.changeAmount ?? 0,
-      pointsEarned: Number(ptsEarned) || 0,
-      redeemed: 0,
-      staff: t.staff || "-",
-      isRedeem: false,
-      // keep raw for debugging if needed
-      _raw: t,
-      masterAfter: Number(t.UpdateMasterPoints ?? t.updatedMasterPoints ?? t.masterAfter ?? NaN)
+      totalAmount:t.totalAmount??0,
+      paymentType:t.paymentType||"-",
+      paidAmount:t.paidAmount??0,
+      changeAmount:t.changeAmount??0,
+      pointsEarned:Number(ptsEarned)||0,
+      redeemed:0,
+      staff:t.staff||"-",
+      isRedeem:false,
+      _raw:t
     });
   });
 
-  // redeems
-  redeemSnap.forEach(child => {
-    const r = child.val();
-    if (!r) return;
-    // accept both 'buyer' and 'buyerName'
-    const buyer = r.buyer ?? r.buyerName;
-    if (!buyer) return;
-
-    // timestamp might be ISO, or other; parse
-    const parsed = parseToDate(r.timestamp || r.time || r.dateTime) || new Date();
-
-    // points used field may be named pointsUsed / pointsUsed / totalPointsUsed / pointsUsed
-    const ptsUsed = Number(r.pointsUsed ?? r.points ?? r.totalPointsUsed ?? r.pointsUsed) || 0;
-
-    // build item description from product + size + usedType
-    const product = r.product ?? r.itemName ?? r.item ?? "-";
-    const size = r.size ? ` ${r.size}` : "";
-    const usedType = r.usedType ? ` (${r.usedType})` : "";
-    const desc = `${product}${size}${usedType}`;
-
+  // Redeems
+  redeemSnap.forEach(child=>{
+    const r=child.val(); if(!r) return;
+    const buyer=r.buyer??r.buyerName; if(!buyer) return;
+    const parsed=parseToDate(r.timestamp||r.time||r.dateTime)||new Date();
+    const ptsUsed=Number(r.pointsUsed??r.points??r.totalPointsUsed??0)||0;
+    const product=r.product??r.itemName??r.item??"-";
+    const size=r.size?` ${r.size}`:"";
+    const usedType=r.usedType?` (${r.usedType})`:"";
+    const desc=`${product}${size}${usedType}`;
     rows.push({
-      _source: 'redeem',
-      date: parsed,
-      dateText: formatJakarta(parsed),
-      buyerName: buyer,
-      items: desc,
-      totalAmount: "-",
-      paymentType: "REDEEM",
-      paidAmount: "-",
-      changeAmount: "-",
-      pointsEarned: 0,
-      redeemed: ptsUsed,
-      staff: r.staff || "-",
-      isRedeem: true,
-      _raw: r
+      _source:'redeem',
+      date:parsed,
+      dateText:formatJakarta(parsed),
+      buyerName:buyer,
+      items:desc,
+      totalAmount:"-",
+      paymentType:"REDEEM",
+      paidAmount:"-",
+      changeAmount:"-",
+      pointsEarned:0,
+      redeemed:ptsUsed,
+      staff:r.staff||"-",
+      isRedeem:true,
+      _raw:r
     });
   });
 
-  // sort ascending by real date to compute running points per buyer
-  rows.sort((a,b) => (a.date?.getTime()||0) - (b.date?.getTime()||0));
+  rows.sort((a,b)=>(a.date?.getTime()||0)-(b.date?.getTime()||0));
 
-  // compute cumulative per-buyer
-  const running = {}; // buyerName => current running points
-  const outputRows = [];
-  for (const r of rows) {
-    const buyer = r.buyerName || "Unknown";
-    if (!(buyer in running)) running[buyer] = 0;
-    // transactions add, redeems subtract
-    if (r.isRedeem) {
-      running[buyer] = running[buyer] - Number(r.redeemed || 0);
+  // ✅ Use updatedMasterPoints directly
+  const outputRows = rows.map(r=>{
+    let remaining;
+    if(r.isRedeem){
+      remaining="-";
     } else {
-      running[buyer] = running[buyer] + Number(r.pointsEarned || 0);
+      remaining = r._raw?.updatedMasterPoints ??
+                  r._raw?.UpdateMasterPoints ??
+                  r._raw?.masterAfter ??
+                  "-";
     }
-    // remainingPoints: prefer actual master points if available (from buyers node), else use running value
-    const masterVal = masterPoints[buyer];
-    const remaining = (typeof masterVal === 'number' && !isNaN(masterVal)) ? masterVal : running[buyer];
+    return {...r,remainingPoints:remaining};
+  });
 
-    outputRows.push({
-      ...r,
-      remainingPoints: remaining
-    });
-  }
-
-  // Sort for display: latest first (descending)
-  outputRows.sort((a,b) => (b.date?.getTime()||0) - (a.date?.getTime()||0));
-
-  historyRows = outputRows;
-  filteredRows = [...historyRows];
-
-  document.getElementById("totalPointsDisplay").textContent = `⭐ History Loaded (${historyRows.length} entries)`;
+  outputRows.sort((a,b)=>(b.date?.getTime()||0)-(a.date?.getTime()||0));
+  historyRows=outputRows;
+  filteredRows=[...historyRows];
+  document.getElementById("totalPointsDisplay").textContent=`⭐ History Loaded (${historyRows.length} entries)`;
   renderHistory();
 }
 
-/* render current filteredRows (or all if none filtered) */
-function renderHistory() {
-  const tbody = document.getElementById("historyBody");
-  const rows = filteredRows.length ? filteredRows : historyRows;
-
-  if (!rows || rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">No data found.</td></tr>`;
-    return;
-  }
-
-  // if sortByName, sort by buyerName (asc)
-  const display = sortByName ? [...rows].sort((a,b)=> (a.buyerName||"").localeCompare(b.buyerName||"")) : rows;
-
-  tbody.innerHTML = display.map(r => `
-    <tr class="${r.isRedeem ? 'redeem-row' : ''} hover:bg-amber-50">
-      <td>${r.dateText ?? (r.date ? formatJakarta(r.date) : "-")}</td>
+function renderHistory(){
+  const tbody=document.getElementById("historyBody");
+  const rows=filteredRows.length?filteredRows:historyRows;
+  if(!rows||rows.length===0){tbody.innerHTML=`<tr><td colspan="11" class="text-center py-4 text-gray-500">No data found.</td></tr>`;return;}
+  const display=sortByName?[...rows].sort((a,b)=>(a.buyerName||"").localeCompare(b.buyerName||"")):rows;
+  tbody.innerHTML=display.map(r=>`
+    <tr class="${r.isRedeem?'redeem-row':''} hover:bg-amber-50">
+      <td>${r.dateText??(r.date?formatJakarta(r.date):"-")}</td>
       <td>${escapeHtml(r.buyerName)}</td>
       <td>${escapeHtml(r.items)}</td>
-      <td>${r.totalAmount !== "-" ? "Rp " + Number(r.totalAmount).toLocaleString() : "-"}</td>
+      <td>${r.totalAmount!=="-"?"Rp "+Number(r.totalAmount).toLocaleString():"-"}</td>
       <td>${r.paymentType}</td>
-      <td>${r.paidAmount !== "-" ? "Rp " + Number(r.paidAmount).toLocaleString() : "-"}</td>
-      <td>${r.changeAmount !== "-" ? "Rp " + Number(r.changeAmount).toLocaleString() : "-"}</td>
-      <td>${r.pointsEarned ? r.pointsEarned : "-"}</td>
-      <td>${r.redeemed ? r.redeemed + " pts" : "-"}</td>
+      <td>${r.paidAmount!=="-"?"Rp "+Number(r.paidAmount).toLocaleString():"-"}</td>
+      <td>${r.changeAmount!=="-"?"Rp "+Number(r.changeAmount).toLocaleString():"-"}</td>
+      <td>${r.pointsEarned||"-"}</td>
+      <td>${r.redeemed? r.redeemed+" pts":"-"}</td>
       <td class="font-semibold text-amber-700">${r.remainingPoints}</td>
       <td>${escapeHtml(r.staff)}</td>
     </tr>
   `).join("");
 }
 
-/* small utility to avoid accidental HTML injection */
-function escapeHtml(s) {
-  if (s === null || s === undefined) return "";
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
+function escapeHtml(s){if(s===null||s===undefined)return"";return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 
-/* Wire up UI after DOM loaded */
-document.addEventListener("DOMContentLoaded", () => {
-  // sort button
-  document.getElementById("sortButton").addEventListener("click", () => {
-    sortByName = !sortByName;
-    renderHistory();
-    document.getElementById("sortButton").textContent = sortByName ? "📅 Sort by Date" : "🔤 Sort by Name";
+document.addEventListener("DOMContentLoaded",()=>{
+  document.getElementById("sortButton").addEventListener("click",()=>{
+    sortByName=!sortByName;renderHistory();
+    document.getElementById("sortButton").textContent=sortByName?"📅 Sort by Date":"🔤 Sort by Name";
   });
-
-  // search input: filter by buyer name (partial match). Empty => show all buyers.
-  document.getElementById("searchInput").addEventListener("input", (e) => {
-    const q = (e.target.value || "").trim().toLowerCase();
-    if (!q) {
-      filteredRows = [...historyRows];
-    } else {
-      filteredRows = historyRows.filter(r => (r.buyerName || "").toLowerCase().includes(q));
-    }
+  document.getElementById("searchInput").addEventListener("input",e=>{
+    const q=(e.target.value||"").trim().toLowerCase();
+    filteredRows=!q?[...historyRows]:historyRows.filter(r=>(r.buyerName||"").toLowerCase().includes(q));
     renderHistory();
   });
-
-  // excel download (only visible rows)
-  document.getElementById("downloadExcel").addEventListener("click", downloadFilteredExcel);
+  document.getElementById("downloadExcel").addEventListener("click",downloadFilteredExcel);
 });
 
-/* export only visible rows (filteredRows or all) */
-function downloadFilteredExcel() {
-  const exportRows = filteredRows.length ? filteredRows : historyRows;
-  if (!exportRows || exportRows.length === 0) { alert("No data to export!"); return; }
-
-  const wsData = [
+function downloadFilteredExcel(){
+  const exportRows=filteredRows.length?filteredRows:historyRows;
+  if(!exportRows.length){alert("No data to export!");return;}
+  const wsData=[
     ["Date/Time","Buyer Name","Items","Total (Rp)","Payment","Paid (Rp)","Change (Rp)","Points Earned","Redeemed (pts)","Remaining Points","Staff"],
-    ...exportRows.map(r => [
-      r.dateText ?? (r.date ? formatJakarta(r.date) : ""),
-      r.buyerName,
-      r.items,
-      (r.totalAmount === "-" ? "" : r.totalAmount),
+    ...exportRows.map(r=>[
+      r.dateText??(r.date?formatJakarta(r.date):""),
+      r.buyerName,r.items,
+      (r.totalAmount==="-"?"":r.totalAmount),
       r.paymentType,
-      (r.paidAmount === "-" ? "" : r.paidAmount),
-      (r.changeAmount === "-" ? "" : r.changeAmount),
-      r.pointsEarned || "",
-      r.redeemed || "",
-      r.remainingPoints,
-      r.staff
+      (r.paidAmount==="-"?"":r.paidAmount),
+      (r.changeAmount==="-"?"":r.changeAmount),
+      r.pointsEarned||"",r.redeemed||"",r.remainingPoints,r.staff
     ])
   ];
-
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
-  XLSX.utils.book_append_sheet(wb, ws, "History");
-  const now = new Date();
-  const fname = `Coffee_History_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}.xlsx`;
-  XLSX.writeFile(wb, fname);
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  XLSX.utils.book_append_sheet(wb,ws,"History");
+  const now=new Date();
+  XLSX.writeFile(wb,`Coffee_History_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}.xlsx`);
 }
 
-/* run initial load */
-loadHistory().catch(err => {
-  console.error("Failed to load history:", err);
-  document.getElementById("historyBody").innerHTML = `<tr><td colspan="11" class="text-center py-4 text-red-500">Failed to load history. Check console.</td></tr>`;
+loadHistory().catch(err=>{
+  console.error("Failed to load history:",err);
+  document.getElementById("historyBody").innerHTML=`<tr><td colspan="11" class="text-center py-4 text-red-500">Failed to load history. Check console.</td></tr>`;
 });
 </script>
 </body>
