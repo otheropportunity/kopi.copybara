@@ -49,7 +49,7 @@
   <div class="card">
     <h1 class="text-2xl font-bold text-center text-amber-800 mb-4">🎁 Redeem Points</h1>
 
-    <!-- Member Summary -->
+    <!-- 👤 Member Summary -->
     <div class="border border-amber-400 bg-amber-50 rounded-lg p-3 mb-4 text-center">
       <h2 class="font-semibold text-lg text-amber-900 flex items-center justify-center gap-2">
         👤 Member Summary
@@ -65,38 +65,39 @@
       </div>
     </div>
 
-    <!-- Redeem Section -->
+    <!-- 🎯 Redeem Section -->
     <div class="space-y-2">
       <label class="font-semibold text-gray-800 text-sm">Select Item to Redeem:</label>
       <select id="redeemProduct" class="w-full border rounded p-2 mb-2">
         <option value="">-- Select Product --</option>
         <option value="copyaren">Copyaren</option>
         <option value="chocobara">Chocobara</option>
-        <option value="amer">Americano</option>
+        <option value="camericano">Camericano</option>
       </select>
 
       <label class="font-semibold text-gray-800 text-sm">Select Size:</label>
       <select id="redeemSize" class="w-full border rounded p-2 mb-2">
         <option value="">-- Select Size --</option>
-        <option value="glass">Glass</option>
-        <option value="500ml">500ml</option>
-        <option value="pocket">Pocket</option>
-        <option value="1L">1L</option>
+        <option value="175">Glass (175ml)</option>
+        <option value="250">Pocket (250ml)</option>
+        <option value="500">500ml</option>
+        <option value="1000">1L</option>
       </select>
 
       <label class="font-semibold text-gray-800 text-sm">Use Point Type:</label>
       <select id="pointType" class="w-full border rounded p-2 mb-2">
         <option value="">-- Select Point Type --</option>
-        <option value="glass">Glass Point</option>
-        <option value="500ml">500ml Point</option>
-        <option value="pocket">Pocket Point</option>
-        <option value="1L">1L Point</option>
+        <option value="summaryGlass">Glass Point</option>
+        <option value="summaryPocket">Pocket Point</option>
+        <option value="summary500ml">500ml Point</option>
+        <option value="summary1L">1L Point</option>
       </select>
 
       <button onclick="redeemPoints()" class="w-full bg-green-700 text-white font-semibold p-2 rounded-lg mt-3">
         🎯 Redeem
       </button>
 
+      <!-- Staff-only -->
       <button id="backToTransactionBtn" onclick="window.location.href='transaction.html'" class="w-full bg-gray-400 text-white font-semibold p-2 rounded-lg mt-2">
         ⬅️ Back to Transaction
       </button>
@@ -113,32 +114,34 @@
     const totalPoints = document.getElementById("totalPoints");
     const backBtn = document.getElementById("backToTransactionBtn");
 
-    // === Display buyer info ===
     window.onload = () => {
+      const buyerData = JSON.parse(localStorage.getItem("buyerInfo"));
       const userRole = sessionStorage.getItem("userRole");
-      const name = sessionStorage.getItem("buyerName") || sessionStorage.getItem("staffBuyerName");
-      buyerName.textContent = "Name: " + (name || "-");
+
+      if (!buyerData) {
+        alert("⚠️ Buyer information missing. Please go back to transaction page.");
+        window.location.href = "transaction.html";
+        return;
+      }
 
       // Hide Back button for members
       if (userRole !== "staff") backBtn.style.display = "none";
 
-      const email = sessionStorage.getItem("buyerEmail");
-      if (email) {
-        const key = email.replace(/[.@]/g, "_");
-        db.ref("buyers/" + key).once("value").then(snap => {
-          const data = snap.val();
-          if (data) {
-            totalPoints.textContent = "Total Points: " + (data.points || 0);
-            document.getElementById("ptsGlass").textContent = data.glass || 0;
-            document.getElementById("pts500ml").textContent = data["500ml"] || 0;
-            document.getElementById("ptsPocket").textContent = data.pocket || 0;
-            document.getElementById("pts1L").textContent = data["1L"] || 0;
-          }
-        });
-      }
+      buyerName.textContent = "Name: " + buyerData.name;
+
+      // Load buyer info from Firebase
+      db.ref("buyers/" + buyerData.id).once("value").then(snapshot => {
+        const data = snapshot.val();
+        if (data) {
+          document.getElementById("totalPoints").textContent = "Total Points: " + (data.masterPoints || 0);
+          document.getElementById("ptsGlass").textContent = data.summaryGlass || 0;
+          document.getElementById("ptsPocket").textContent = data.summaryPocket || 0;
+          document.getElementById("pts500ml").textContent = data.summary500ml || 0;
+          document.getElementById("pts1L").textContent = data.summary1L || 0;
+        }
+      });
     };
 
-    // === Redeem Logic ===
     function redeemPoints() {
       const product = document.getElementById("redeemProduct").value;
       const size = document.getElementById("redeemSize").value;
@@ -149,13 +152,29 @@
         return;
       }
 
-      alert(`🎁 Redeem request submitted for ${product} (${size}) using ${pointType} points.`);
-      // You can add Firebase update logic here
+      const buyerData = JSON.parse(localStorage.getItem("buyerInfo"));
+      db.ref("buyers/" + buyerData.id).once("value").then(snapshot => {
+        const data = snapshot.val() || {};
+        const currentPoints = data[pointType] || 0;
+
+        if (currentPoints <= 0) {
+          alert("❌ Not enough points to redeem this item!");
+          return;
+        }
+
+        // Deduct 1 point (you can adjust logic)
+        const updatedPoints = { [pointType]: currentPoints - 1, masterPoints: (data.masterPoints || 0) - 1 };
+
+        db.ref("buyers/" + buyerData.id).update(updatedPoints).then(() => {
+          alert(`🎁 Successfully redeemed ${product} (${size}) using ${pointType.replace("summary", "")} points!`);
+          location.reload();
+        });
+      });
     }
 
-    // === Logout ===
     function logoutUser() {
       sessionStorage.clear();
+      localStorage.removeItem("buyerInfo");
       window.location.href = "index.html";
     }
   </script>
