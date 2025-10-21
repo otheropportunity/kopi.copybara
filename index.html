@@ -100,7 +100,7 @@
       <h2 class="text-lg font-semibold mb-2 text-center">Login</h2>
       <input id="loginIdentifier" class="w-full border rounded p-2 mb-2" placeholder="Email or Phone Number" />
       <input id="loginPassword" type="password" class="w-full border rounded p-2 mb-3" placeholder="Password" />
-      <button onclick="loginUser()" class="w-full bg-green-700 text-white p-2 rounded-lg">
+      <button onclick="loginUser(event)" class="w-full bg-green-700 text-white p-2 rounded-lg">
         Login
       </button>
     </div>
@@ -186,8 +186,9 @@
       cancelChangePassword();
     }
 
-    // === Login ===
-    async function loginUser() {
+    // === Login (Fixed) ===
+    async function loginUser(event) {
+      event?.preventDefault();
       const identifier = document.getElementById("loginIdentifier").value.trim();
       const password = document.getElementById("loginPassword").value.trim();
       if (!identifier || !password) return alert("Please fill all fields.");
@@ -201,17 +202,19 @@
           const data = child.val();
           if ((data.email === identifier || data.phone === identifier) && data.password === password) {
             loggedIn = true;
-            sessionStorage.setItem("userName", data.name);
-            sessionStorage.setItem("userRole", data.role);
-            sessionStorage.setItem("userEmail", data.email);
-            sessionStorage.setItem("userPhone", data.phone);
+
+            // Store in localStorage for stable login
+            localStorage.setItem("userName", data.name);
+            localStorage.setItem("userRole", data.role);
+            localStorage.setItem("userEmail", data.email);
+            localStorage.setItem("userPhone", data.phone);
 
             alert(`✅ Welcome, ${data.role === 'staff' ? 'Staff ' : ''}${data.name}`);
 
-            // Small delay for smooth transition
             setTimeout(() => {
-              window.location.href = data.role === "staff" ? "transaction.html" : "redeem.html";
-            }, 600);
+              if (data.role === "staff") window.location.replace("transaction.html");
+              else window.location.replace("redeem.html");
+            }, 800);
           }
         });
         if (loggedIn) break;
@@ -220,12 +223,12 @@
       if (!loggedIn) alert("❌ Invalid email/phone or password.");
     }
 
-    // === Show Change Password Button if logged in ===
+    // === Auto Redirect if Already Logged In ===
     window.addEventListener("load", () => {
-      const userRole = sessionStorage.getItem("userRole");
-      if (userRole) {
-        changePasswordBtn.style.display = "block";
-      }
+      const userRole = localStorage.getItem("userRole");
+      if (userRole === "staff") window.location.replace("transaction.html");
+      else if (userRole === "buyer") window.location.replace("redeem.html");
+      else changePasswordBtn.style.display = "block";
     });
   </script>
 </body>
