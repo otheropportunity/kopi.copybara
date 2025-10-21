@@ -42,7 +42,9 @@
     button:hover {
       opacity: 0.85;
     }
-    #changePasswordSection { display: none; }
+    #changePasswordSection, #changePasswordBtn {
+      display: none;
+    }
   </style>
 </head>
 
@@ -108,7 +110,9 @@
     const db = firebase.database();
     const staffMasterDiv = document.getElementById('staffMasterDiv');
     const changePasswordSection = document.getElementById('changePasswordSection');
+    const changePasswordBtn = document.getElementById('changePasswordBtn');
 
+    // === Show/Hide Master Password ===
     document.getElementById('userType').addEventListener('change', function() {
       if (this.value === 'staff') staffMasterDiv.classList.remove('hidden');
       else staffMasterDiv.classList.add('hidden');
@@ -203,7 +207,11 @@
             sessionStorage.setItem("userPhone", data.phone);
 
             alert(`✅ Welcome, ${data.role === 'staff' ? 'Staff ' : ''}${data.name}`);
-            window.location.href = data.role === "staff" ? "transaction.html" : "redeem.html";
+
+            // Small delay for smooth transition
+            setTimeout(() => {
+              window.location.href = data.role === "staff" ? "transaction.html" : "redeem.html";
+            }, 600);
           }
         });
         if (loggedIn) break;
@@ -211,6 +219,14 @@
 
       if (!loggedIn) alert("❌ Invalid email/phone or password.");
     }
+
+    // === Show Change Password Button if logged in ===
+    window.addEventListener("load", () => {
+      const userRole = sessionStorage.getItem("userRole");
+      if (userRole) {
+        changePasswordBtn.style.display = "block";
+      }
+    });
   </script>
 </body>
 </html>
