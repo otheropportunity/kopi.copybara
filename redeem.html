@@ -89,6 +89,23 @@
   </div>
 
   <script>
+    // ✅ Session Validation (added safely)
+    const userRole = sessionStorage.getItem("userRole");
+    const buyerNameSession = sessionStorage.getItem("buyerName");
+
+    if (!userRole || userRole !== "member") {
+      alert("Session expired or invalid access. Please log in again.");
+      window.location.href = "index.html";
+    }
+
+    if (buyerNameSession) {
+      document.addEventListener("DOMContentLoaded", () => {
+        const nameEl = document.getElementById("buyerName");
+        if (nameEl) nameEl.textContent = buyerNameSession;
+      });
+    }
+
+    // === Existing Firebase + Redeem Logic ===
     const firebaseConfig = {
       apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
       authDomain: "kopi-copybara.firebaseapp.com",
@@ -102,7 +119,7 @@
     const db = firebase.database();
 
     let buyerId = null, buyerName = "", buyerData = {};
-    let userRole = "";
+    let role = "";
 
     const pointsTable = {
       copyaren: { glass: 10, pocket: 20, "500ml": 40, "1l": 80 },
