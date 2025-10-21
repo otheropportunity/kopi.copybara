@@ -1,230 +1,299 @@
-< !DOCTYPE html>
-    <html lang="en">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coffee Loyalty - Transaction</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+  <style>
+    body { background-color: #fffaf0; font-family: 'Poppins', sans-serif; }
+    .card { background: white; border-radius: 12px; padding: 24px; max-width: 500px; margin: 50px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
 
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Coffee Loyalty - Transaction</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-        <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-        <style>
-            body {
-                background-color: #fffaf0;
-                font-family: 'Poppins', sans-serif;
-            }
+    /* ✅ Animated Toast */
+    #toast {
+      position: fixed;
+      bottom: 20px;
+      right: -300px;
+      background-color: #16a34a;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      font-size: 14px;
+      transition: all 0.5s ease;
+      opacity: 0;
+      z-index: 1000;
+    }
+    #toast.show {
+      right: 20px;
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
 
-            .card {
-                background: white;
-                border-radius: 12px;
-                padding: 24px;
-                max-width: 500px;
-                margin: 50px auto;
-                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-            }
+  <!-- ✅ Toast -->
+  <div id="toast"></div>
 
-            /* ✅ Animated Toast */
-            #toast {
-                position: fixed;
-                bottom: 20px;
-                right: -300px;
-                background-color: #16a34a;
-                color: white;
-                padding: 10px 20px;
-                border-radius: 8px;
-                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-                font-size: 14px;
-                transition: all 0.5s ease;
-                opacity: 0;
-                z-index: 1000;
-            }
+  <div class="card">
+    <h1 class="text-2xl font-bold text-center text-amber-800 mb-2">☕ Staff Transaction Panel</h1>
+    <h2 class="text-lg font-semibold text-center mb-4">
+      Welcome, <span id="staffNameDisplay" class="text-amber-700"></span>
+    </h2>
 
-            #toast.show {
-                right: 20px;
-                opacity: 1;
-            }
-        </style>
-    </head>
+    <div class="mb-4">
+      <input id="searchBuyer" class="w-full border rounded p-2 mb-2" placeholder="Search Buyer (Name / Phone)" />
+      <button onclick="searchBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg hover:bg-green-800 transition">Search</button>
+    </div>
 
-    <body>
-        < !-- ✅ Toast -->
-            <div id="toast"></div>
-            <div class="card">
-                <h1 class="text-2xl font-bold text-center text-amber-800 mb-2">☕ Staff Transaction Panel</h1>
-                <h2 class="text-lg font-semibold text-center mb-4">Welcome,
-                    <span id="staffNameDisplay" class="text-amber-700"></span>
-                </h2>
-                <div class="mb-4"><input id="searchBuyer" class="w-full border rounded p-2 mb-2" placeholder="Search Buyer (Name / Phone)" /><button onclick="searchBuyer()" class="w-full bg-green-700 text-white p-2 rounded-lg hover:bg-green-800 transition">Search</button></div>
-                <div id="buyerInfo" class="hidden border-t pt-3">
-                    < !-- ✅ Buyer Summary -->
-                        <div id="buyerSummary" class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
-                            <h3 class="font-semibold text-amber-800 text-center mb-2">👤 Member Summary</h3>
-                            <p class="text-center mb-2">Name: <span id="buyerNameDisplay" class="font-bold text-amber-900">-</span></p>
-                            <p class="text-center mb-3">Total Points: <span id="buyerTotalPoints" class="font-bold text-green-700">0</span></p>
-                            <div class="grid grid-cols-2 gap-1 text-sm text-center">
-                                <p>Glass: <span id="glassPoints" class="font-bold text-amber-900">0</span></p>
-                                <p>Pocket: <span id="pocketPoints" class="font-bold text-amber-900">0</span></p>
-                                <p>500ml: <span id="ml500Points" class="font-bold text-amber-900">0</span></p>
-                                <p>1L: <span id="l1Points" class="font-bold text-amber-900">0</span></p>
-                            </div>
-                        </div>
-                        < !-- 🔽 Product Selection Section -->
-                            <h3 class="font-semibold mb-2 text-amber-800">Select Items:</h3>
-                            < !-- Copyaren -->
-                                <div class="mb-3">
-                                    <div class="flex justify-between items-center mb-1"><label>Copyaren</label><input type="number" id="copyarenQty" min="0" value="0" class="w-20 text-center"></div><select id="copyarenSize" class="w-full">
-                                        <option value="175">Glass 175ml - Rp 10.000</option>
-                                        <option value="250">Pocket 250ml - Rp 20.000</option>
-                                        <option value="500">500ml - Rp 40.000</option>
-                                        <option value="1000">1L - Rp 80.000</option>
-                                    </select>
-                                </div>
-                                < !-- Chocobara -->
-                                    <div class="mb-3">
-                                        <div class="flex justify-between items-center mb-1"><label>Chocobara</label><input type="number" id="chocobaraQty" min="0" value="0" class="w-20 text-center"></div><select id="chocobaraSize" class="w-full">
-                                            <option value="175">Glass 175ml - Rp 12.000</option>
-                                            <option value="250">Pocket 250ml - Rp 24.000</option>
-                                            <option value="500">500ml - Rp 48.000</option>
-                                            <option value="1000">1L - Rp 95.000</option>
-                                        </select>
-                                    </div>
-                                    < !-- Camericano -->
-                                        <div class="mb-3">
-                                            <div class="flex justify-between items-center mb-1"><label>Camericano</label><input type="number" id="camericanoQty" min="0" value="0" class="w-20 text-center"></div><select id="camericanoSize" class="w-full">
-                                                <option value="175">Glass 175ml - Rp 8.000</option>
-                                                <option value="250">Pocket 250ml - Rp 15.000</option>
-                                                <option value="500">500ml - Rp 30.000</option>
-                                                <option value="1000">1L - Rp 60.000</option>
-                                            </select>
-                                        </div>
-                                        < !-- Transaction Summary -->
-                                            <div class="mt-3"><label class="font-semibold text-amber-700">Transaction Type:</label>
-                                                <div class="flex gap-3 mt-2"><button type="button" id="btnQRIS" onclick="setPaymentType('QRIS')" class="flex-1 bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700">QRIS</button><button type="button" id="btnCash" onclick="setPaymentType('CASH')" class="flex-1 bg-green-600 text-white p-2 rounded-lg hover:bg-green-700">CASH</button></div>
-                                                <p class="text-sm mt-2 text-gray-600">Selected: <span id="selectedPayment">None</span></p>
-                                            </div>
-                                            <div id="cashInputSection" class="hidden mt-3 bg-amber-50 border border-amber-200 p-3 rounded-lg"><label class="block mb-1 font-semibold">Customer Paid (Rp):</label><input type="number" id="cashPaid" min="0" class="w-full p-2 border rounded" placeholder="Enter paid amount" />
-                                                <p class="text-sm text-gray-600 mt-2">Change: Rp <span id="changeAmount">0</span></p>
-                                            </div>
-                                            <div class="mt-4 bg-amber-50 p-3 rounded-lg border border-amber-200">
-                                                <p><strong>Total Amount:</strong>Rp <span id="totalAmount">0</span></p>
-                                                <p><strong>Points Earned:</strong><span id="totalPoints">0</span></p>
-                                            </div>
-                                            < !-- ✅ Removed Calculate Total button --><button id="submitBtn" onclick="submitTransaction()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-3 hover:bg-amber-800">Submit Transaction</button><button onclick="goToRedeem()" class="w-full bg-blue-700 text-white p-2 rounded-lg mt-3 hover:bg-blue-800">Redeem Points</button>
-                </div>
-                <div class="mt-6 space-y-3"><button onclick="window.location.href='history.html'" class="w-full bg-yellow-600 text-white p-2 rounded-lg hover:bg-yellow-700">View Transaction History</button><button onclick="logoutStaff()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg hover:bg-gray-400">Logout</button></div>
-            </div>
-            <script>
-                const firebaseConfig = {
-                    apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
-                    authDomain: "kopi-copybara.firebaseapp.com",
-                    databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
-                    projectId: "kopi-copybara",
-                    storageBucket: "kopi-copybara.appspot.com",
-                    messagingSenderId: "729875984861",
-                    appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
-                }
+    <div id="buyerInfo" class="hidden border-t pt-3">
 
-                ;
-                firebase.initializeApp(firebaseConfig);
-                const db = firebase.database();
-                let currentBuyerId = null;
-                let currentBuyerName = "";
-                let currentBuyerPoints = 0;
-                let paymentType = null;
+      <!-- ✅ Buyer Summary -->
+      <div id="buyerSummary" class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+        <h3 class="font-semibold text-amber-800 text-center mb-2">👤 Member Summary</h3>
+        <p class="text-center mb-2">Name: <span id="buyerNameDisplay" class="font-bold text-amber-900">-</span></p>
+        <p class="text-center mb-3">Total Points: <span id="buyerTotalPoints" class="font-bold text-green-700">0</span></p>
+        <div class="grid grid-cols-2 gap-1 text-sm text-center">
+          <p>Glass: <span id="glassPoints" class="font-bold text-amber-900">0</span></p>
+          <p>Pocket: <span id="pocketPoints" class="font-bold text-amber-900">0</span></p>
+          <p>500ml: <span id="ml500Points" class="font-bold text-amber-900">0</span></p>
+          <p>1L: <span id="l1Points" class="font-bold text-amber-900">0</span></p>
+        </div>
+      </div>
+      
+      <!-- 🔽 Product Selection Section -->
+      <h3 class="font-semibold mb-2 text-amber-800">Select Items:</h3>
 
-                /* ✅ Animated Toast */
-                function showToast(msg, color = "green") {
-                    const toast = document.getElementById("toast");
-                    toast.textContent = msg;
-                    toast.style.backgroundColor = color === "red" ? "#dc2626" : "#16a34a";
-                    toast.classList.add("show");
-                    setTimeout(() => toast.classList.remove("show"), 3000);
-                }
+      <!-- Copyaren -->
+      <div class="mb-3">
+        <div class="flex justify-between items-center mb-1">
+          <label>Copyaren</label>
+          <input type="number" id="copyarenQty" min="0" value="0" class="w-20 text-center">
+        </div>
+        <select id="copyarenSize" class="w-full">
+          <option value="175">Glass 175ml - Rp 10.000</option>
+          <option value="250">Pocket 250ml - Rp 20.000</option>
+          <option value="500">500ml - Rp 40.000</option>
+          <option value="1000">1L - Rp 80.000</option>
+        </select>
+      </div>
 
-                const prices = {
-                    copyaren: {
-                        175: 10000,
-                        250: 20000,
-                        500: 40000,
-                        1000: 80000
-                    }
+      <!-- Chocobara -->
+      <div class="mb-3">
+        <div class="flex justify-between items-center mb-1">
+          <label>Chocobara</label>
+          <input type="number" id="chocobaraQty" min="0" value="0" class="w-20 text-center">
+        </div>
+        <select id="chocobaraSize" class="w-full">
+          <option value="175">Glass 175ml - Rp 12.000</option>
+          <option value="250">Pocket 250ml - Rp 24.000</option>
+          <option value="500">500ml - Rp 48.000</option>
+          <option value="1000">1L - Rp 95.000</option>
+        </select>
+      </div>
 
-                    ,
-                    chocobara: {
-                        175: 12000,
-                        250: 24000,
-                        500: 48000,
-                        1000: 95000
-                    }
+      <!-- Camericano -->
+      <div class="mb-3">
+        <div class="flex justify-between items-center mb-1">
+          <label>Camericano</label>
+          <input type="number" id="camericanoQty" min="0" value="0" class="w-20 text-center">
+        </div>
+        <select id="camericanoSize" class="w-full">
+          <option value="175">Glass 175ml - Rp 8.000</option>
+          <option value="250">Pocket 250ml - Rp 15.000</option>
+          <option value="500">500ml - Rp 30.000</option>
+          <option value="1000">1L - Rp 60.000</option>
+        </select>
+      </div>
 
-                    ,
-                    camericano: {
-                        175: 8000,
-                        250: 15000,
-                        500: 30000,
-                        1000: 60000
-                    }
-                }
+      <!-- Transaction Summary -->
+      <div class="mt-3">
+        <label class="font-semibold text-amber-700">Transaction Type:</label>
+        <div class="flex gap-3 mt-2">
+          <button type="button" id="btnQRIS" onclick="setPaymentType('QRIS')" class="flex-1 bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700">QRIS</button>
+          <button type="button" id="btnCash" onclick="setPaymentType('CASH')" class="flex-1 bg-green-600 text-white p-2 rounded-lg hover:bg-green-700">CASH</button>
+        </div>
+        <p class="text-sm mt-2 text-gray-600">Selected: <span id="selectedPayment">None</span></p>
+      </div>
 
-                ;
+      <div id="cashInputSection" class="hidden mt-3 bg-amber-50 border border-amber-200 p-3 rounded-lg">
+        <label class="block mb-1 font-semibold">Customer Paid (Rp):</label>
+        <input type="number" id="cashPaid" min="0" class="w-full p-2 border rounded" placeholder="Enter paid amount" />
+        <p class="text-sm text-gray-600 mt-2">Change: Rp <span id="changeAmount">0</span></p>
+      </div>
 
-                document.addEventListener("DOMContentLoaded", () => {
-                    const staffName = sessionStorage.getItem("staffName");
-                    if (!staffName) {
-                        showToast("Session expired. Please login again.", "red");
-                        window.location.href = "index.html";
-                        return;
-                    }
+      <div class="mt-4 bg-amber-50 p-3 rounded-lg border border-amber-200">
+        <p><strong>Total Amount:</strong> Rp <span id="totalAmount">0</span></p>
+        <p><strong>Points Earned:</strong> <span id="totalPoints">0</span></p>
+      </div>
 
-                    document.getElementById("staffNameDisplay").textContent = staffName;
-                });
+      <button onclick="calculateTotal()" class="w-full bg-yellow-600 text-white p-2 rounded-lg mt-3 hover:bg-yellow-700">🧮 Calculate Total</button>
+      <button id="submitBtn" onclick="submitTransaction()" class="w-full bg-amber-700 text-white p-2 rounded-lg mt-3 hover:bg-amber-800">Submit Transaction</button>
+      <button onclick="goToRedeem()" class="w-full bg-blue-700 text-white p-2 rounded-lg mt-3 hover:bg-blue-800">Redeem Points</button>
+    </div>
 
-                function setPaymentType(type) {
-                    paymentType = type;
-                    document.getElementById("selectedPayment").textContent = type;
-                    document.getElementById("cashInputSection").classList.toggle("hidden", type !== "CASH");
-                    calculateTotal();
-                }
+    <div class="mt-6 space-y-3">
+      <button onclick="window.location.href='history.html'" class="w-full bg-yellow-600 text-white p-2 rounded-lg hover:bg-yellow-700">View Transaction History</button>
+      <button onclick="logoutStaff()" class="w-full bg-gray-300 text-gray-800 p-2 rounded-lg hover:bg-gray-400">Logout</button>
+    </div>
+  </div>
 
-                function searchBuyer() {
-                    const query = document.getElementById("searchBuyer").value.trim().toLowerCase();
-                    if (!query) return showToast("Enter buyer name or phone!", "red");
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAWZg7mZe1j2Nwkg5JvPUjf_bdCvfWvN9g",
+  authDomain: "kopi-copybara.firebaseapp.com",
+  databaseURL: "https://kopi-copybara-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "kopi-copybara",
+  storageBucket: "kopi-copybara.appspot.com",
+  messagingSenderId: "729875984861",
+  appId: "1:729875984861:web:6b1ea2d44f8789c18e4634"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-                    db.ref("buyers").once("value").then(s => {
-                        let found = false;
-                        s.forEach(c => {
-                            const d = c.val();
-                            if ((d.name && d.name.toLowerCase().includes(query)) || (d.phone && d.phone.includes(query))) {
-                                found = true;
-                                currentBuyerId = c.key;
-                                currentBuyerName = d.name;
-                                currentBuyerPoints = d.masterPoints || 0;
-                                document.getElementById("buyerNameDisplay").innerText = currentBuyerName;
-                                document.getElementById("buyerTotalPoints").innerText = currentBuyerPoints;
-                                document.getElementById("glassPoints").innerText = d.summaryGlass || 0;
-                                document.getElementById("pocketPoints").innerText = d.summaryPocket || 0;
-                                document.getElementById("ml500Points").innerText = d.summary500ml || 0;
-                                document.getElementById("l1Points").innerText = d.summary1L || 0;
-                                document.getElementById("buyerInfo").classList.remove("hidden");
-                                showToast(Buyer found: $ {
-                                    currentBuyerName
-                                });
-                            }
-                        });
-                        if (!found) showToast("Buyer not found!", "red");
-                    });
-                }
+let currentBuyerId = null;
+let currentBuyerName = "";
+let currentBuyerPoints = 0;
+let paymentType = null;
 
-                function calculateTotal() {
-                    const cQ = +document.getElementById("copyarenQty").value || 0;
-                    const cS = document.getElementById("copyarenSize").value;
-                    const bQ = +document.getElementById("chocobaraQty").value || 0;
-                    const bS = document.getElementById("chocobaraSize").value;
-                    const aQ = +document.getElementById("camericanoQty").value || 0;
-                    const aS = document.getElementById("camericanoSize").value;
-                    const totalAmount = cQ * prices.copyaren[cS] + bQ * prices.chocobara[bS] + aQ * prices.camericano[aS];
-                    const totalPoints = cQ + bQ + aQ; // 🧮 Track size-based summary const summary={glass:0,pocket:0,ml500:0,l1:0}; function addSummary(size,qty){ if(size==="175") summary.glass+=qty; else if(size==="250") summary.pocket+=qty; else if(size==="500") summary.ml500+=qty; else if(size==="1000") summary.l1+=qty; } addSummary(cS,cQ); addSummary(bS,bQ); addSummary(aS,aQ); document.getElementById("totalAmount").textContent=totalAmount.toLocaleString(); document.getElementById("totalPoints").textContent=totalPoints; if(paymentType==="CASH"){ const paid=+document.getElementById("cashPaid").value||0; const change=paid>0?Math.max(0,paid-totalAmount):0; document.getElementById("changeAmount").textContent=change.toLocaleString(); } return {totalAmount,totalPoints,summary}; } /* ✅ Auto calculation listeners */ document.addEventListener("DOMContentLoaded",()=>{ ['copyarenQty','chocobaraQty','camericanoQty','copyarenSize','chocobaraSize','camericanoSize','cashPaid'].forEach(id=>{ const el=document.getElementById(id); if(el){ el.addEventListener('input',calculateTotal); el.addEventListener('change',calculateTotal); } }); }); function submitTransaction(){ if(!currentBuyerId) return showToast("Please search for a buyer first!","red"); if(!paymentType) return showToast("Select payment type!","red"); const {totalAmount,totalPoints,summary}=calculateTotal(); if(totalAmount===0) return showToast("Please select at least one item!","red"); db.ref("buyers/"+currentBuyerId).once("value").then(snap=>{ const d=snap.val()||{}; const newData={ masterPoints:(d.masterPoints||0)+totalPoints, summaryGlass:(d.summaryGlass||0)+summary.glass, summaryPocket:(d.summaryPocket||0)+summary.pocket, summary500ml:(d.summary500ml||0)+summary.ml500, summary1L:(d.summary1L||0)+summary.l1 }; db.ref("buyers/"+currentBuyerId).update(newData).then(()=>{ document.getElementById("buyerTotalPoints").textContent=newData.masterPoints; document.getElementById("glassPoints").textContent=newData.summaryGlass; document.getElementById("pocketPoints").textContent=newData.summaryPocket; document.getElementById("ml500Points").textContent=newData.summary500ml; document.getElementById("l1Points").textContent=newData.summary1L; showToast(✅ ${currentBuyerName} bought Glass:${summary.glass}, Pocket:${summary.pocket}, 500ml:${summary.ml500}, 1L:${summary.l1}, "green"); ["copyarenQty","chocobaraQty","camericanoQty"].forEach(id=>document.getElementById(id).value=0); ["totalAmount","totalPoints","changeAmount"].forEach(id=>document.getElementById(id).textContent="0"); }); }); } function saveBuyerForRedeem(){ if(!currentBuyerId)return showToast("Search buyer first!","red"); localStorage.setItem("buyerInfo",JSON.stringify({ id:currentBuyerId,name:currentBuyerName,masterPoints:currentBuyerPoints })); return true; } function goToRedeem(){ if(saveBuyerForRedeem()) window.location.href="redeem.html"; } function logoutStaff(){sessionStorage.clear();window.location.href="index.html";} 
-            </script>
-    </body>
+/* ✅ Animated Toast */
+function showToast(msg, color="green") {
+  const toast=document.getElementById("toast");
+  toast.textContent=msg;
+  toast.style.backgroundColor=color==="red"?"#dc2626":"#16a34a";
+  toast.classList.add("show");
+  setTimeout(()=>toast.classList.remove("show"),3000);
+}
 
-    </html>
+const prices = {
+  copyaren: {175:10000,250:20000,500:40000,1000:80000},
+  chocobara: {175:12000,250:24000,500:48000,1000:95000},
+  camericano: {175:8000,250:15000,500:30000,1000:60000}
+};
+
+document.addEventListener("DOMContentLoaded",()=>{
+  const staffName=sessionStorage.getItem("staffName");
+  if(!staffName){showToast("Session expired. Please login again.","red");window.location.href="index.html";return;}
+  document.getElementById("staffNameDisplay").textContent=staffName;
+});
+
+function setPaymentType(type){
+  paymentType=type;
+  document.getElementById("selectedPayment").textContent=type;
+  document.getElementById("cashInputSection").classList.toggle("hidden",type!=="CASH");
+}
+
+function searchBuyer(){
+  const query=document.getElementById("searchBuyer").value.trim().toLowerCase();
+  if(!query) return showToast("Enter buyer name or phone!","red");
+  db.ref("buyers").once("value").then(s=>{
+    let found=false;
+    s.forEach(c=>{
+      const d=c.val();
+      if((d.name&&d.name.toLowerCase().includes(query))||(d.phone&&d.phone.includes(query))){
+        found=true;
+        currentBuyerId=c.key;
+        currentBuyerName=d.name;
+        currentBuyerPoints=d.masterPoints||0;
+        document.getElementById("buyerNameDisplay").innerText=currentBuyerName;
+        document.getElementById("buyerTotalPoints").innerText=currentBuyerPoints;
+        document.getElementById("glassPoints").innerText=d.summaryGlass||0;
+        document.getElementById("pocketPoints").innerText=d.summaryPocket||0;
+        document.getElementById("ml500Points").innerText=d.summary500ml||0;
+        document.getElementById("l1Points").innerText=d.summary1L||0;
+        document.getElementById("buyerInfo").classList.remove("hidden");
+        showToast(`Buyer found: ${currentBuyerName}`);
+      }
+    });
+    if(!found) showToast("Buyer not found!","red");
+  });
+}
+
+function calculateTotal(){
+  const cQ=+document.getElementById("copyarenQty").value||0;
+  const cS=document.getElementById("copyarenSize").value;
+  const bQ=+document.getElementById("chocobaraQty").value||0;
+  const bS=document.getElementById("chocobaraSize").value;
+  const aQ=+document.getElementById("camericanoQty").value||0;
+  const aS=document.getElementById("camericanoSize").value;
+
+  const totalAmount=cQ*prices.copyaren[cS]+bQ*prices.chocobara[bS]+aQ*prices.camericano[aS];
+  const totalPoints=cQ+bQ+aQ;
+
+  // 🧮 Track size-based summary
+  const summary={glass:0,pocket:0,ml500:0,l1:0};
+  function addSummary(size,qty){
+    if(size==="175") summary.glass+=qty;
+    else if(size==="250") summary.pocket+=qty;
+    else if(size==="500") summary.ml500+=qty;
+    else if(size==="1000") summary.l1+=qty;
+  }
+  addSummary(cS,cQ);
+  addSummary(bS,bQ);
+  addSummary(aS,aQ);
+
+  document.getElementById("totalAmount").textContent=totalAmount.toLocaleString();
+  document.getElementById("totalPoints").textContent=totalPoints;
+  document.getElementById("sumGlass").textContent=summary.glass;
+  document.getElementById("sumPocket").textContent=summary.pocket;
+  document.getElementById("sum500").textContent=summary.ml500;
+  document.getElementById("sum1L").textContent=summary.l1;
+
+  if(paymentType==="CASH"){
+    const paid=+document.getElementById("cashPaid").value||0;
+    const change=paid>0?Math.max(0,paid-totalAmount):0;
+    document.getElementById("changeAmount").textContent=change.toLocaleString();
+  }
+
+  return {totalAmount,totalPoints,summary};
+}
+
+function submitTransaction(){
+  if(!currentBuyerId) return showToast("Please search for a buyer first!","red");
+  if(!paymentType) return showToast("Select payment type!","red");
+
+  const {totalAmount,totalPoints,summary}=calculateTotal();
+  if(totalAmount===0) return showToast("Please select at least one item!","red");
+
+  db.ref("buyers/"+currentBuyerId).once("value").then(snap=>{
+    const d=snap.val()||{};
+    const newData={
+      masterPoints:(d.masterPoints||0)+totalPoints,
+      summaryGlass:(d.summaryGlass||0)+summary.glass,
+      summaryPocket:(d.summaryPocket||0)+summary.pocket,
+      summary500ml:(d.summary500ml||0)+summary.ml500,
+      summary1L:(d.summary1L||0)+summary.l1
+    };
+
+    db.ref("buyers/"+currentBuyerId).update(newData).then(()=>{
+      document.getElementById("buyerTotalPoints").textContent=newData.masterPoints;
+      document.getElementById("glassPoints").textContent=newData.summaryGlass;
+      document.getElementById("pocketPoints").textContent=newData.summaryPocket;
+      document.getElementById("ml500Points").textContent=newData.summary500ml;
+      document.getElementById("l1Points").textContent=newData.summary1L;
+
+      // 🧾 Show animated toast summary
+      showToast(`✅ ${currentBuyerName} bought Glass:${summary.glass}, Pocket:${summary.pocket}, 500ml:${summary.ml500}, 1L:${summary.l1}`, "green");
+
+      // Reset quantities
+      ["copyarenQty","chocobaraQty","camericanoQty"].forEach(id=>document.getElementById(id).value=0);
+      ["sumGlass","sumPocket","sum500","sum1L","totalAmount","totalPoints"].forEach(id=>document.getElementById(id).textContent="0");
+    });
+  });
+}
+
+function saveBuyerForRedeem(){
+  if(!currentBuyerId)return showToast("Search buyer first!","red");
+  localStorage.setItem("buyerInfo",JSON.stringify({
+    id:currentBuyerId,name:currentBuyerName,masterPoints:currentBuyerPoints
+  }));
+  return true;
+}
+
+function goToRedeem(){ if(saveBuyerForRedeem()) window.location.href="redeem.html"; }
+function logoutStaff(){sessionStorage.clear();window.location.href="index.html";}
+</script>
+</body>
+</html>
